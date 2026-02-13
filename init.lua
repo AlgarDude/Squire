@@ -1158,14 +1158,7 @@ local function renderUI()
                                     trashItems = {},
                                 }
                                 for _, item in ipairs(entry.items) do
-                                    local slots = nil
-                                    if item.slots then
-                                        slots = {}
-                                        for _, s in ipairs(item.slots) do
-                                            table.insert(slots, s)
-                                        end
-                                    end
-                                    table.insert(copy.items, { id = item.id, name = item.name, icon = item.icon, slots = slots })
+                                    table.insert(copy.items, { id = item.id, name = item.name, icon = item.icon })
                                 end
                                 for _, trash in ipairs(entry.trashItems or {}) do
                                     table.insert(copy.trashItems, { id = trash.id, name = trash.name, icon = trash.icon })
@@ -1268,9 +1261,6 @@ local function renderUI()
                                 imgui.SameLine()
                             end
                             local itemLabel = item.name and item.name ~= "" and item.name or string.format("[ID: %d]", item.id)
-                            if item.slots and #item.slots > 0 then
-                                itemLabel = itemLabel .. " (" .. table.concat(item.slots, ", ") .. ")"
-                            end
                             imgui.Text(itemLabel)
                             if editable then
                                 imgui.SameLine()
@@ -1289,19 +1279,10 @@ local function renderUI()
                             if not hasCursor then imgui.BeginDisabled() end
                             if imgui.SmallButton("Add from Cursor##trade") then
                                 local cursor = mq.TLO.Cursor
-                                local slots = {}
-                                local slotNames = { "primary", "secondary", "head", "face", "chest", "arms", "wrist", "hands", "legs", "feet", "waist", "range" }
-                                local slotDisplay = { "Primary", "Secondary", "Head", "Face", "Chest", "Arms", "Wrist", "Hands", "Legs", "Feet", "Waist", "Range" }
-                                for s, slotName in ipairs(slotNames) do
-                                    if cursor.WornSlot(slotName)() then
-                                        table.insert(slots, slotDisplay[s])
-                                    end
-                                end
                                 table.insert(entry.items, {
                                     id = cursor.ID(),
                                     name = cursor.Name() or "",
                                     icon = cursor.Icon(),
-                                    slots = slots,
                                 })
                                 settingsDirty = true
                             end

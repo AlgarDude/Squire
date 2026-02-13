@@ -7,7 +7,9 @@
 local toxicEdge = { id = 148732, name = "Summoned: Toxic Edge", icon = 1407, }
 local ixiblat = { id = 28596, name = "Summoned: Hand of Ixiblat", icon = 971, }
 local crystalBelt = { id = 77510, name = "Summoned: Crystal Belt", icon = 501, }
-
+local phantomSatchel = { id = 17310, name = "Phantom Satchel", icon = 691, }
+local marduMask = { id = 1348, name = "Summoned: Muzzle of Mardu", icon = 770, }
+local mowchaMask = { id = 46987, name = "Summoned: Muzzle of Mowcha", icon = 770, }
 
 return {
   {
@@ -57,7 +59,7 @@ return {
           name = "Mask of Mardu",
           type = "item",
           method = "cursor",
-          items = { { id = 1348, }, },
+          items = { marduMask, },
         },
       },
       { -- Belt
@@ -77,45 +79,27 @@ return {
     },
   },
   {
-    title = "Magician",
-    classes = { "MAG", },
+    title = "Default",
+    classes = { "BST", },
     effects = {
       { -- Weapons
-        {
-          name = "Artifact of Toxic Edge",
-          type = "item",
-          method = "cursor",
-          items = { { id = 148732, name = "Summoned: Toxic Edge", icon = 1407, }, { id = 148732, name = "Summoned: Toxic Edge", icon = 1407, }, },
-        },
-        {
-          name = "Legendary Toxic Edge Earring",
-          type = "item",
-          method = "cursor",
-          items = { { id = 148732, }, { id = 148732, }, },
-        },
-        {
-          name = "Toxic Edge Earring",
-          type = "item",
-          method = "cursor",
-          items = { { id = 148732, }, { id = 148732, }, },
-        },
         {
           name = "Legendary Gloves of Strongboom",
           type = "item",
           method = "cursor",
-          items = { { id = 28596, }, { id = 28596, }, },
+          items = { ixiblat, ixiblat, },
         },
         {
           name = "Gloves of Strongboom",
           type = "item",
           method = "cursor",
-          items = { { id = 28596, }, { id = 28596, }, },
+          items = { ixiblat, ixiblat, },
         },
         {
           name = "Gloves of Ixiblat",
           type = "item",
           method = "cursor",
-          items = { { id = 28596, }, { id = 28596, }, },
+          items = { ixiblat, ixiblat, },
         },
       },
       { -- Mask
@@ -123,7 +107,7 @@ return {
           name = "Mask of Mardu",
           type = "item",
           method = "cursor",
-          items = { { id = 1348, }, },
+          items = { marduMask, },
         },
       },
       { -- Belt
@@ -131,13 +115,189 @@ return {
           name = "Legendary Goblin Mask of Stability",
           type = "item",
           method = "cursor",
-          items = { { id = 77510, }, },
+          items = { crystalBelt, },
         },
         {
           name = "Goblin Mask of Stability",
           type = "item",
           method = "cursor",
-          items = { { id = 77510, }, },
+          items = { crystalBelt, },
+        },
+      },
+    },
+  },
+  {
+    title = "Default",
+    classes = { "MAG", },
+    effects = {
+      { -- Weapons
+        {
+          name = "Artifact of Toxic Edge",
+          type = "item",
+          method = "cursor",
+          items = { toxicEdge, toxicEdge, },
+        },
+        {
+          name = "Legendary Toxic Edge Earring",
+          type = "item",
+          method = "cursor",
+          items = { toxicEdge, toxicEdge, },
+        },
+        {
+          name = "Toxic Edge Earring",
+          type = "item",
+          method = "cursor",
+          items = { toxicEdge, toxicEdge, },
+        },
+        {
+          name = "Artifact of Baat",
+          type = "item",
+          method = "cursor",
+          items = { { id = 148864, name = "Summoned: Hand of Baat", icon = 2611, }, { id = 148864, name = "Summoned: Hand of Baat", icon = 2611, }, },
+        },
+        {
+          name = "Summon Dagger of the Deep",
+          type = "spell",
+          method = "cursor",
+          items = { id = 77509, name = "Summoned: Dagger of the Deep", icon = 1407, },
+        },
+        {
+          name = "Legendary Gloves of Strongboom",
+          type = "item",
+          method = "cursor",
+          items = { ixiblat, ixiblat, },
+        },
+        {
+          name = "Gloves of Strongboom",
+          type = "item",
+          method = "cursor",
+          items = { ixiblat, ixiblat, },
+        },
+        {
+          name = "Gloves of Ixiblat",
+          type = "item",
+          method = "cursor",
+          items = { ixiblat, ixiblat, },
+        },
+        {
+          name = "Summon Fang",
+          type = "spell",
+          method = "cursor",
+          items = { id = 7313, name = "Summoned: Snake Fang", icon = 801, },
+        },
+        {
+          name = "Summon Dagger",
+          type = "spell",
+          method = "cursor",
+          items = { id = 7305, name = "Summoned: Dagger", icon = 592, },
+        },
+      },
+      { -- Armor
+        {
+          name = "Ancestral Girdle of the High Summoner",
+          type = "item",
+          method = "cursor",
+          items = { phantomSatchel, },
+        },
+        {
+          name = "Ancient Girdle of the High Summoner",
+          type = "item",
+          method = "cursor",
+          items = { phantomSatchel, },
+        },
+        {
+          name = "Girdle of the High Summoner",
+          type = "item",
+          method = "cursor",
+          items = { phantomSatchel, },
+        },
+        {
+          name = "Summon Plate of the Elements",
+          type = "spell",
+          method = "cursor",
+          items = { phantomSatchel, },
+        },
+        {
+          name = "Summon Phantom Plate",
+          type = "spell",
+          method = "cursor",
+          items = { phantomSatchel, },
+        },
+        {
+          name = "Summon Phantom Chain",
+          type = "spell",
+          method = "cursor",
+          items = { phantomSatchel, },
+        },
+        {
+          name = "Summon Phantom Leather",
+          type = "spell",
+          method = "cursor",
+          items = { phantomSatchel, },
+        },
+      },
+      { -- Mask
+        {
+          name = "Mightforged Mask of Mowcha",
+          type = "item",
+          method = "cursor",
+          items = { mowchaMask, },
+        },
+        {
+          name = "Legendary Mask of Mowcha",
+          type = "item",
+          method = "cursor",
+          items = { mowchaMask, },
+        },
+        {
+          name = "Ancient Mask of Mowcha",
+          type = "item",
+          method = "cursor",
+          items = { mowchaMask, },
+        },
+        {
+          name = "Summon Muzzle of Mowcha",
+          type = "spell",
+          method = "cursor",
+          items = { mowchaMask, },
+        },
+        {
+          name = "Miranda's Mask",
+          type = "item",
+          method = "cursor",
+          items = { id = 151096, name = "Summoned: Muzzle of Miranda", icon = 770, },
+        },
+        {
+          name = "Mask of Mardu",
+          type = "item",
+          method = "cursor",
+          items = { marduMask, },
+        },
+        {
+          name = "Muzzle of Mardu",
+          type = "spell",
+          method = "cursor",
+          items = { marduMask, },
+        },
+      },
+      { -- Belt
+        {
+          name = "Legendary Goblin Mask of Stability",
+          type = "item",
+          method = "cursor",
+          items = { crystalBelt, },
+        },
+        {
+          name = "Goblin Mask of Stability",
+          type = "item",
+          method = "cursor",
+          items = { crystalBelt, },
+        },
+        {
+          name = "Summon Crystal Belt",
+          type = "spell",
+          method = "cursor",
+          items = { crystalBelt, },
         },
       },
     },
