@@ -26,10 +26,10 @@ local settingsDirty = false
 local savedGems = nil
 local statusText = "Idle"
 
-local methodTypes = { "direct", "cursor", "bag" }
-local methodLabels = { "Direct to Pet", "Summon to Cursor", "Summon Bag" }
-local sourceTypes = { "spell", "aa", "item" }
-local sourceLabels = { "Spell", "AA", "Item" }
+local methodTypes = { "cursor", "bag", "direct", }
+local methodLabels = { "Summon Single Item", "Summon Bag", "Direct to Pet", }
+local sourceTypes = { "spell", "aa", "item", }
+local sourceLabels = { "Spell", "AA", "Item", }
 
 -- EMU server name -> preset file suffix
 local emuServers = {
@@ -37,8 +37,8 @@ local emuServers = {
     ["Project Lazarus"] = "projectlazarus",
 }
 
-local tellAccessOptions = { "anyone", "group", "raid", "allowlist", "denylist" }
-local tellAccessLabels = { "Anyone", "Group Only", "Raid Only", "Allow List", "Deny List" }
+local tellAccessOptions = { "anyone", "group", "raid", "allowlist", "denylist", }
+local tellAccessLabels = { "Anyone", "Group Only", "Raid Only", "Allow List", "Deny List", }
 
 -- UI temp state
 local showSettings = false
@@ -49,7 +49,7 @@ local manualPlayerName = ""
 local pendingRemoveIdx = nil
 local newSourceName = ""
 local newSourceType = "spell"
-local newSourceMethod = "direct"
+local newSourceMethod = "cursor"
 local showAddSource = false
 local editingIdx = nil
 local editSourceType = ""
@@ -577,7 +577,7 @@ local function joinArgs(args, startIdx)
 end
 
 local function commandHandler(...)
-    local args = { ... }
+    local args = { ..., }
     local cmd = args[1] and args[1]:lower() or "help"
 
     if cmd == "arm" then
@@ -600,7 +600,6 @@ local function commandHandler(...)
         else
             utils.output("Usage: /squire arm <PlayerName|self|target> [SetName]")
         end
-
     elseif cmd == "group" then
         local setName = joinArgs(args, 2)
 
@@ -614,7 +613,6 @@ local function commandHandler(...)
                 end
             end
         end
-
     elseif cmd == "raid" then
         local setName = joinArgs(args, 2)
 
@@ -628,18 +626,14 @@ local function commandHandler(...)
                 end
             end
         end
-
     elseif cmd == "stop" then
         stopRequested = true
         queue = {}
         utils.output("Stop requested. Clearing queue.")
-
     elseif cmd == "show" then
         showUI = true
-
     elseif cmd == "hide" then
         showUI = false
-
     elseif cmd == "debug" then
         local arg = args[2] and args[2]:lower() or ""
         local prev = utils.debugMode
@@ -655,7 +649,6 @@ local function commandHandler(...)
             settingsDirty = true
             utils.output("Debug mode: %s", utils.debugMode and "ON" or "OFF")
         end
-
     elseif cmd == "help" then
         utils.output("Commands:")
         utils.output("  /squire arm <PlayerName|self|target> [SetName]")
@@ -666,7 +659,6 @@ local function commandHandler(...)
         utils.output("  /squire hide")
         utils.output("  /squire debug [on|off]")
         utils.output("  /squire help")
-
     else
         utils.output("Unknown command: %s. Try /squire help", cmd)
     end
@@ -677,6 +669,8 @@ end
 local animItems = mq.FindTextureAnimation("A_DragItem")
 local animSpells = mq.FindTextureAnimation("A_SpellIcons")
 local bgTexture = mq.CreateTexture(mq.TLO.Lua.Dir() .. "/squire/resources/squire.png")
+local logoTexture = mq.CreateTexture(mq.TLO.Lua.Dir() .. "/squire/resources/algar_60.png")
+local shieldTexture = mq.CreateTexture(mq.TLO.Lua.Dir() .. "/squire/resources/shieldicon.png")
 
 local function renderWindowBg()
     if not bgTexture then return end
@@ -815,136 +809,133 @@ local function renderUI()
     imgui.PushStyleVar(ImGuiStyleVar.PopupRounding, 4)
     imgui.PushStyleVar(ImGuiStyleVar.GrabRounding, 4)
 
-    imgui.SetNextWindowSize(ImVec2(400, 400), ImGuiCond.FirstUseEver)
-    imgui.SetNextWindowSizeConstraints(ImVec2(400, 400), ImVec2(800, 2000))
+    imgui.SetNextWindowSize(ImVec2(400, 420), ImGuiCond.FirstUseEver)
+    imgui.SetNextWindowSizeConstraints(ImVec2(400, 420), ImVec2(800, 2000))
     local prevShowUI = showUI
     local shouldDraw
-    showUI, shouldDraw = imgui.Begin("Squire", showUI)
+    showUI, shouldDraw = imgui.Begin("Squire - Arm Thy Pet!", showUI)
     if not showUI and prevShowUI then
         utils.output("Window closed. Use \ag/squire show\ax to reopen.")
     end
-    if not shouldDraw then
-        imgui.End()
-        imgui.PopStyleVar(5)
-        return
-    end
+    if shouldDraw then
+        renderWindowBg()
+        local contentStartPos = imgui.GetCursorPosVec()
+        local allNames = getAllSetNames()
 
-    renderWindowBg()
-    local contentStartPos = imgui.GetCursorPosVec()
-    local allNames = getAllSetNames()
+        -- Status
+        imgui.Text("Status:")
+        imgui.SameLine()
+        if aborted then
+            imgui.TextColored(1, 0, 0, 1, statusText)
+        elseif isArming then
+            imgui.TextColored(1, 1, 0, 1, statusText)
+        else
+            imgui.TextColored(0, 1, 0, 1, statusText)
+        end
 
-    -- Status
-    imgui.Text("Status:")
-    imgui.SameLine()
-    if aborted then
-        imgui.TextColored(1, 0, 0, 1, statusText)
-    elseif isArming then
-        imgui.TextColored(1, 1, 0, 1, statusText)
-    else
-        imgui.TextColored(0, 1, 0, 1, statusText)
-    end
+        -- Set selector + Manage Sets button
+        imgui.Text("Current Set:")
+        imgui.SameLine()
+        imgui.SetNextItemWidth(200)
+        local comboLabel = settings.selectedSet ~= "" and settings.selectedSet or "No Sets Found"
+        if settings.selectedSet == "" then imgui.PushStyleColor(ImGuiCol.Text, ImVec4(0.5, 0.5, 0.5, 1.0)) end
+        if imgui.BeginCombo("##SetCombo", comboLabel) then
+            for _, name in ipairs(allNames) do
+                if imgui.Selectable(name, name == settings.selectedSet) then
+                    settings.selectedSet = name
+                    settingsDirty = true
+                    editingIdx = nil
+                    showAddSource = false
+                    pendingRemoveIdx = nil
+                end
+            end
+            imgui.EndCombo()
+        end
+        if settings.selectedSet == "" then imgui.PopStyleColor() end
+        imgui.SameLine()
+        if imgui.Button("Manage") then
+            showEditSets = not showEditSets
+        end
 
-    -- Set selector + Manage Sets button
-    imgui.Text("Current Set:")
-    imgui.SameLine()
-    imgui.SetNextItemWidth(200)
-    local comboLabel = settings.selectedSet ~= "" and settings.selectedSet or "No Sets Found"
-    if settings.selectedSet == "" then imgui.PushStyleColor(ImGuiCol.Text, ImVec4(0.5, 0.5, 0.5, 1.0)) end
-    if imgui.BeginCombo("##SetCombo", comboLabel) then
-        for _, name in ipairs(allNames) do
-            if imgui.Selectable(name, name == settings.selectedSet) then
-                settings.selectedSet = name
-                settingsDirty = true
-                editingIdx = nil
-                showAddSource = false
-                pendingRemoveIdx = nil
+        imgui.SeparatorText("Arming")
+
+        -- Arm Controls
+        if isArming then imgui.BeginDisabled() end
+        imgui.PushStyleVar(ImGuiStyleVar.FramePadding, 8, 6)
+        if imgui.Button("My Pet") then
+            addToQueue("self", nil, false)
+        end
+        imgui.SameLine()
+        if imgui.Button("Target's Pet") then
+            commandHandler("arm", "target")
+        end
+        imgui.SameLine()
+        if imgui.Button("Group Pets") then
+            commandHandler("group")
+        end
+        imgui.SameLine()
+        if imgui.Button("Raid Pets") then
+            commandHandler("raid")
+        end
+        imgui.PopStyleVar()
+
+        imgui.Text("Arm a player's pet:")
+        imgui.SameLine()
+        imgui.SetNextItemWidth(150)
+        manualPlayerName = imgui.InputTextWithHint("##PlayerName", "Player Name", manualPlayerName)
+        imgui.SameLine()
+        if imgui.Button("Arm") and manualPlayerName ~= "" then
+            addToQueue(manualPlayerName, nil, false)
+        end
+        if isArming then imgui.EndDisabled() end
+
+        if isArming then
+            if imgui.Button("Stop") then
+                stopRequested = true
+                queue = {}
+                utils.output("Stop requested. Clearing queue.")
             end
         end
-        imgui.EndCombo()
-    end
-    if settings.selectedSet == "" then imgui.PopStyleColor() end
-    imgui.SameLine()
-    if imgui.Button("Manage") then
-        showEditSets = not showEditSets
-    end
 
-    imgui.SeparatorText("Arming")
-
-    -- Arm Controls
-    if isArming then imgui.BeginDisabled() end
-    imgui.PushStyleVar(ImGuiStyleVar.FramePadding, 8, 6)
-    if imgui.Button("My Pet") then
-        addToQueue("self", nil, false)
-    end
-    imgui.SameLine()
-    if imgui.Button("Target's Pet") then
-        commandHandler("arm", "target")
-    end
-    imgui.SameLine()
-    if imgui.Button("Group Pets") then
-        commandHandler("group")
-    end
-    imgui.SameLine()
-    if imgui.Button("Raid Pets") then
-        commandHandler("raid")
-    end
-    imgui.PopStyleVar()
-
-    imgui.Text("Arm a player's pet:")
-    imgui.SameLine()
-    imgui.SetNextItemWidth(150)
-    manualPlayerName = imgui.InputTextWithHint("##PlayerName", "Player Name", manualPlayerName)
-    imgui.SameLine()
-    if imgui.Button("Arm") and manualPlayerName ~= "" then
-        addToQueue(manualPlayerName, nil, false)
-    end
-    if isArming then imgui.EndDisabled() end
-
-    if isArming then
-        if imgui.Button("Stop") then
-            stopRequested = true
-            queue = {}
-            utils.output("Stop requested. Clearing queue.")
-        end
-    end
-
-    if imgui.CollapsingHeader("History") then
-        local _, availY = imgui.GetContentRegionAvail()
-        imgui.BeginChild("##HistoryScroll", ImVec2(0, availY - imgui.GetFrameHeightWithSpacing()), 0)
-        for _, histEntry in ipairs(armHistory) do
-            local displayName = histEntry.playerName:lower() == "self" and "my" or (histEntry.playerName .. "'s")
-            imgui.TextColored(0.4, 0.8, 0.4, 1, string.format("[%s]", histEntry.timestamp))
-            imgui.SameLine(0, 4)
-            if #histEntry.failed > 0 then
-                imgui.TextWrapped(string.format("Processed %d/%d sources for %s pet. (Set: %s) Failed: %s",
-                    histEntry.passed, histEntry.total, displayName, histEntry.setName,
-                    table.concat(histEntry.failed, ", ")))
-            else
-                imgui.TextWrapped(string.format("Processed %d/%d sources for %s pet. (Set: %s)",
-                    histEntry.passed, histEntry.total, displayName, histEntry.setName))
+        if imgui.CollapsingHeader("History") then
+            local _, availY = imgui.GetContentRegionAvail()
+            imgui.BeginChild("##HistoryScroll", ImVec2(0, availY - imgui.GetFrameHeightWithSpacing()), 0)
+            for _, histEntry in ipairs(armHistory) do
+                local displayName = histEntry.playerName:lower() == "self" and "my" or (histEntry.playerName .. "'s")
+                imgui.TextColored(0.4, 0.8, 0.4, 1, string.format("[%s]", histEntry.timestamp))
+                imgui.SameLine(0, 4)
+                if #histEntry.failed > 0 then
+                    imgui.TextWrapped(string.format("Processed %d/%d sources for %s pet. (Set: %s) Failed: %s",
+                        histEntry.passed, histEntry.total, displayName, histEntry.setName,
+                        table.concat(histEntry.failed, ", ")))
+                else
+                    imgui.TextWrapped(string.format("Processed %d/%d sources for %s pet. (Set: %s)",
+                        histEntry.passed, histEntry.total, displayName, histEntry.setName))
+                end
             end
+            if #armHistory == 0 then
+                imgui.TextDisabled("No history yet.")
+            end
+            imgui.EndChild()
         end
-        if #armHistory == 0 then
-            imgui.TextDisabled("No history yet.")
+
+        -- Cog icon in upper right (drawn last so it's on top)
+        local btnSize = imgui.CalcTextSize(icons.FA_COGS) + imgui.GetStyle().FramePadding.x * 2
+        imgui.SetCursorPos(imgui.GetWindowWidth() - btnSize - imgui.GetStyle().WindowPadding.x, contentStartPos.y)
+        if imgui.SmallButton(icons.FA_COGS) then
+            showSettings = not showSettings
         end
-        imgui.EndChild()
+        if imgui.IsItemHovered() then imgui.SetTooltip("Settings and Commands") end
     end
-
-    -- Cog icon in upper right (drawn last so it's on top)
-    local btnSize = imgui.CalcTextSize(icons.FA_COGS) + imgui.GetStyle().FramePadding.x * 2
-    imgui.SetCursorPos(imgui.GetWindowWidth() - btnSize - imgui.GetStyle().WindowPadding.x, contentStartPos.y)
-    if imgui.SmallButton(icons.FA_COGS) then
-        showSettings = not showSettings
-    end
-    if imgui.IsItemHovered() then imgui.SetTooltip("Settings") end
-
     imgui.End()
 
     -- Settings Window
     if showSettings then
-        imgui.SetNextWindowSize(ImVec2(350, 200), ImGuiCond.FirstUseEver)
-        showSettings = imgui.Begin("Squire Settings###SquireSettings", showSettings)
-        if showSettings then
+        imgui.SetNextWindowSize(ImVec2(400, 420), ImGuiCond.FirstUseEver)
+        imgui.SetNextWindowSizeConstraints(ImVec2(400, 420), ImVec2(800, 2000))
+        local settingsDraw
+        showSettings, settingsDraw = imgui.Begin("Squire Settings###SquireSettings", showSettings)
+        if settingsDraw then
             renderWindowBg()
             local changed
 
@@ -957,7 +948,8 @@ local function renderUI()
             local tw
             tw, changed = imgui.InputTextWithHint("##triggerWord", "e.g. squire", settings.triggerWord)
             if imgui.IsItemHovered() then
-                imgui.SetTooltip("If you receive a tell with this keyword, you will arm the sender's pet.")
+                local example = settings.triggerWord ~= "" and settings.triggerWord or "squire"
+                imgui.SetTooltip(string.format("If you receive a tell with this keyword, you will arm the sender's pet.\nTell example: /tell YourName %s [Set Name]", example))
             end
             if changed then
                 settings.triggerWord = tw
@@ -966,7 +958,10 @@ local function renderUI()
 
             local taIndex = 1
             for i, opt in ipairs(tellAccessOptions) do
-                if opt == settings.tellAccess then taIndex = i break end
+                if opt == settings.tellAccess then
+                    taIndex = i
+                    break
+                end
             end
             imgui.Text("Tell Access:")
             imgui.SameLine()
@@ -1036,6 +1031,70 @@ local function renderUI()
                 utils.debugMode = settings.debugMode
                 settingsDirty = true
             end
+
+            local headColor = ImVec4(0.6, 0.85, 1.0, 1.0)
+            local bodyColor = ImVec4(0.78, 0.74, 0.6, 1.0)
+
+            imgui.NewLine()
+            imgui.PushStyleColor(ImGuiCol.Text, headColor)
+            imgui.SeparatorText("Commands")
+            imgui.PopStyleColor()
+            imgui.Spacing()
+            imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
+            imgui.Bullet()
+            imgui.TextWrapped("/squire arm <name|self|target> [set] - Arm a player's pet")
+            imgui.Bullet()
+            imgui.TextWrapped("/squire group [set] - Arm all pets in group")
+            imgui.Bullet()
+            imgui.TextWrapped("/squire raid [set] - Arm all pets in raid")
+            imgui.Bullet()
+            imgui.TextWrapped("/squire stop - Stop the current operation")
+            imgui.Bullet()
+            imgui.TextWrapped("/squire show / hide - Toggle the UI")
+            imgui.Bullet()
+            imgui.TextWrapped("/squire debug [on|off] - Toggle debug logging")
+            imgui.PopStyleColor()
+
+            -- Logo and credits at bottom
+            imgui.SetCursorPosY(imgui.GetWindowHeight() - 75 - imgui.GetStyle().WindowPadding.y)
+            local blockY = imgui.GetCursorPosY()
+            if logoTexture then
+                imgui.SetCursorPosY(blockY + 10)
+                imgui.Image(logoTexture:GetTextureID(), ImVec2(60, 60))
+                imgui.SameLine(0, 2)
+            end
+            imgui.BeginGroup()
+            local lineY = blockY
+            if shieldTexture then
+                imgui.SetCursorPosY(lineY + 13)
+                imgui.Image(shieldTexture:GetTextureID(), ImVec2(23, 20), ImVec2(0, 0), ImVec2(1, 1), ImVec4(0.0, 0.6, 0.6, 1.0))
+                imgui.SameLine(0, 1)
+            end
+            imgui.SetWindowFontScale(1.3)
+            imgui.SetCursorPosY(lineY + 13)
+            imgui.TextColored(0.0, 0.6, 0.6, 1.0, "Squire")
+            imgui.SetWindowFontScale(1.0)
+            imgui.SameLine(0, 4)
+            imgui.SetCursorPosY(lineY + 17)
+            imgui.Text("v1.0 by")
+            imgui.SameLine(0, 4)
+            imgui.SetCursorPosY(lineY + 13)
+            imgui.SetWindowFontScale(1.3)
+            imgui.TextColored(1.0, 0.5, 0.0, 1.0, "Algar")
+            imgui.SetWindowFontScale(1.0)
+            imgui.SetCursorPosY(imgui.GetCursorPosY() - 3)
+            imgui.SetCursorPosX(imgui.GetCursorPosX() + 6)
+            imgui.Text("See my other projects at:")
+            imgui.SetCursorPosY(imgui.GetCursorPosY() - 3)
+            imgui.SetCursorPosX(imgui.GetCursorPosX() + 6)
+            imgui.TextColored(0.4, 0.6, 1.0, 1, "https://www.github.com/AlgarDude")
+            if imgui.IsItemHovered() then
+                imgui.SetTooltip("Click to copy URL")
+            end
+            if imgui.IsItemClicked() then
+                imgui.SetClipboardText("https://www.github.com/AlgarDude")
+            end
+            imgui.EndGroup()
         end
         imgui.End()
     end
@@ -1044,8 +1103,9 @@ local function renderUI()
     if showEditSets then
         imgui.SetNextWindowSize(ImVec2(520, 450), ImGuiCond.FirstUseEver)
         imgui.SetNextWindowSizeConstraints(ImVec2(520, 200), ImVec2(800, 2000))
-        showEditSets = imgui.Begin("Manage Sets###SquireEditSets", showEditSets)
-        if showEditSets then
+        local editSetsDraw
+        showEditSets, editSetsDraw = imgui.Begin("Manage Sets###SquireEditSets", showEditSets)
+        if editSetsDraw then
             renderWindowBg()
             local allNames = getAllSetNames()
             local isPreset = isPresetSet(settings.selectedSet)
@@ -1145,10 +1205,10 @@ local function renderUI()
                                     trashItems = {},
                                 }
                                 for _, item in ipairs(entry.items) do
-                                    table.insert(copy.items, { id = item.id, name = item.name, icon = item.icon })
+                                    table.insert(copy.items, { id = item.id, name = item.name, icon = item.icon, })
                                 end
                                 for _, trash in ipairs(entry.trashItems or {}) do
-                                    table.insert(copy.trashItems, { id = trash.id, name = trash.name, icon = trash.icon })
+                                    table.insert(copy.trashItems, { id = trash.id, name = trash.name, icon = trash.icon, })
                                 end
                                 table.insert(newSet, copy)
                             end
@@ -1382,7 +1442,7 @@ local function renderUI()
                     if imgui.Button("Add Source") then
                         newSourceName = ""
                         newSourceType = "spell"
-                        newSourceMethod = "direct"
+                        newSourceMethod = "cursor"
                         showAddSource = true
                     end
                 end
@@ -1405,7 +1465,10 @@ local function renderUI()
             if shouldDraw then
                 local nsIdx = 1
                 for t, st in ipairs(sourceTypes) do
-                    if st == newSourceType then nsIdx = t break end
+                    if st == newSourceType then
+                        nsIdx = t
+                        break
+                    end
                 end
                 imgui.Text("Source Type:")
                 imgui.SameLine()
@@ -1427,7 +1490,10 @@ local function renderUI()
 
                 local nmIdx = 1
                 for m, mt in ipairs(methodTypes) do
-                    if mt == newSourceMethod then nmIdx = m break end
+                    if mt == newSourceMethod then
+                        nmIdx = m
+                        break
+                    end
                 end
                 imgui.Text("Method:")
                 imgui.SameLine()
@@ -1476,7 +1542,10 @@ local function renderUI()
             if shouldDraw then
                 local tIdx = 1
                 for t, st in ipairs(sourceTypes) do
-                    if st == editSourceType then tIdx = t break end
+                    if st == editSourceType then
+                        tIdx = t
+                        break
+                    end
                 end
                 imgui.Text("Source Type:")
                 imgui.SameLine()
@@ -1497,7 +1566,10 @@ local function renderUI()
 
                 local mIdx = 1
                 for m, mt in ipairs(methodTypes) do
-                    if mt == editSourceMethod then mIdx = m break end
+                    if mt == editSourceMethod then
+                        mIdx = m
+                        break
+                    end
                 end
                 imgui.Text("Method:")
                 imgui.SameLine()
@@ -1532,8 +1604,9 @@ local function renderUI()
     if showHelp then
         imgui.SetNextWindowSize(ImVec2(575, 600), ImGuiCond.FirstUseEver)
         imgui.SetNextWindowSizeConstraints(ImVec2(575, 600), ImVec2(800, 2000))
-        showHelp = imgui.Begin("Squire Help###SquireHelp", showHelp)
-        if showHelp then
+        local helpDraw
+        showHelp, helpDraw = imgui.Begin("Squire Help###SquireHelp", showHelp)
+        if helpDraw then
             renderWindowBg()
 
             local headColor = ImVec4(0.6, 0.85, 1.0, 1.0)
@@ -1560,19 +1633,19 @@ local function renderUI()
             imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
             imgui.BulletText(methodLabels[1])
             imgui.Indent()
-            imgui.TextWrapped("Equips an item directly on the pet. No items to set up.")
+            imgui.TextWrapped("Places an item on your cursor. Squire gives it to the pet.")
             imgui.Unindent()
             imgui.Spacing()
             imgui.BulletText(methodLabels[2])
             imgui.Indent()
-            imgui.TextWrapped("Places an item on your cursor. Squire gives it to the pet.")
+            imgui.TextWrapped(
+                "Places a bag on your cursor. Squire gives the pet \"Items to Give\" " ..
+                "from the bag, and destroys \"Items to Discard\".")
             imgui.Unindent()
             imgui.Spacing()
             imgui.BulletText(methodLabels[3])
             imgui.Indent()
-            imgui.TextWrapped(
-                "Places a bag on your cursor. Squire gives the pet \"Items to Give\" " ..
-                "from the bag, and destroys \"Items to Discard\".")
+            imgui.TextWrapped("Equips an item directly on the pet. No items to set up.")
             imgui.Unindent()
             imgui.PopStyleColor()
 
@@ -1631,11 +1704,9 @@ local function startup()
                     settings.selectedSet = presetName
                     settingsDirty = true
                     utils.output("Auto-selected preset '%s' based on class.", presetName)
-                    goto classFound
                 end
             end
         end
-        ::classFound::
     end
 
     if settings.allowMovement and not mq.TLO.Plugin("mq2nav").IsLoaded() then
