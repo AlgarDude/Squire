@@ -111,7 +111,7 @@ end
 
 local function waitForCastComplete(abortFunc)
     -- Wait for casting to start (up to 1s)
-    mq.delay(1000, function() return mq.TLO.Me.Casting() and true end)
+    mq.delay(1000, function() return mq.TLO.Me.Casting() ~= nil end)
 
     -- Wait for casting to finish
     utils.waitFor(function() return not mq.TLO.Me.Casting() end, 30000, 100, abortFunc)
@@ -134,7 +134,6 @@ function casting.useSource(entry, abortFunc)
         mq.cmdf("/cast %d", gem)
         waitForCastComplete(abortFunc)
         return true
-
     elseif entry.type == "aa" then
         if not utils.waitFor(function() return mq.TLO.Me.AltAbilityReady(entry.name)() end, 30000, 100, abortFunc) then
             utils.output("\arAA %s not ready in time.", entry.name)
@@ -145,7 +144,6 @@ function casting.useSource(entry, abortFunc)
         mq.cmdf("/aa act %s", entry.name)
         waitForCastComplete(abortFunc)
         return true
-
     elseif entry.type == "item" then
         if not utils.waitFor(function() return mq.TLO.Me.ItemReady(entry.name)() end, 30000, 100, abortFunc) then
             utils.output("\arItem %s not ready in time.", entry.name)
