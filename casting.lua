@@ -6,13 +6,13 @@
 local mq = require('mq')
 local utils = require('squire.utils')
 
-local M = {}
+local casting = {}
 
 local gemMap = {}
 
 -- Spell Memorization
 
-function M.memorizeSpell(gemSlot, spellName)
+function casting.memorizeSpell(gemSlot, spellName)
     local me = mq.TLO.Me
 
     if not me.Book(spellName)() then
@@ -59,7 +59,7 @@ end
 
 -- Spell Preparation
 
-function M.prepareSpells(set)
+function casting.prepareSpells(set)
     gemMap = {}
 
     local spellNames = {}
@@ -83,7 +83,7 @@ function M.prepareSpells(set)
             utils.output("\arNot enough gem slots for all spells.")
             return nil
         end
-        local result = M.memorizeSpell(nextGem, spellName)
+        local result = casting.memorizeSpell(nextGem, spellName)
         if not result then
             utils.output("\arFailed to prepare spell: %s", spellName)
             return nil
@@ -99,10 +99,10 @@ end
 
 -- Spell Restoration
 
-function M.restoreSpells(savedGems)
+function casting.restoreSpells(savedGems)
     for gemSlot, spellName in pairs(savedGems) do
         if spellName ~= "" and mq.TLO.Me.Gem(gemSlot)() ~= spellName then
-            M.memorizeSpell(gemSlot, spellName)
+            casting.memorizeSpell(gemSlot, spellName)
         end
     end
 end
@@ -117,7 +117,7 @@ local function waitForCastComplete(abortFunc)
     utils.waitFor(function() return not mq.TLO.Me.Casting() end, 30000, 100, abortFunc)
 end
 
-function M.useSource(entry, abortFunc)
+function casting.useSource(entry, abortFunc)
     if entry.type == "spell" then
         local gem = gemMap[entry.name]
         if not gem then
@@ -162,4 +162,4 @@ function M.useSource(entry, abortFunc)
     return false
 end
 
-return M
+return casting

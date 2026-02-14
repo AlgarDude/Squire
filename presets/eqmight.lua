@@ -13,7 +13,7 @@ local mowchaMask = { id = 46987, name = "Summoned: Muzzle of Mowcha", icon = 770
 
 return {
   {
-    title = "Default",
+    title = "Class Preset (EQM)",
     classes = { "ENC", "NEC", },
     effects = {
       { -- Weapons
@@ -79,7 +79,7 @@ return {
     },
   },
   {
-    title = "Default",
+    title = "Class Preset (EQM)",
     classes = { "BST", },
     effects = {
       { -- Weapons
@@ -127,7 +127,7 @@ return {
     },
   },
   {
-    title = "Default",
+    title = "Class Preset (EQM)",
     classes = { "MAG", },
     effects = {
       { -- Weapons
@@ -159,7 +159,7 @@ return {
           name = "Summon Dagger of the Deep",
           type = "spell",
           method = "cursor",
-          items = { id = 77509, name = "Summoned: Dagger of the Deep", icon = 1407, },
+          items = { { id = 77509, name = "Summoned: Dagger of the Deep", icon = 1407, }, },
         },
         {
           name = "Legendary Gloves of Strongboom",
@@ -183,13 +183,13 @@ return {
           name = "Summon Fang",
           type = "spell",
           method = "cursor",
-          items = { id = 7313, name = "Summoned: Snake Fang", icon = 801, },
+          items = { { id = 7313, name = "Summoned: Snake Fang", icon = 801, }, },
         },
         {
           name = "Summon Dagger",
           type = "spell",
           method = "cursor",
-          items = { id = 7305, name = "Summoned: Dagger", icon = 592, },
+          items = { { id = 7305, name = "Summoned: Dagger", icon = 592, }, },
         },
       },
       { -- Armor
@@ -265,7 +265,7 @@ return {
           name = "Miranda's Mask",
           type = "item",
           method = "cursor",
-          items = { id = 151096, name = "Summoned: Muzzle of Miranda", icon = 770, },
+          items = { { id = 151096, name = "Summoned: Muzzle of Miranda", icon = 770, }, },
         },
         {
           name = "Mask of Mardu",

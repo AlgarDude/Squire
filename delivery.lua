@@ -7,7 +7,7 @@ local mq = require('mq')
 local utils = require('squire.utils')
 local casting = require('squire.casting')
 
-local M = {}
+local delivery = {}
 
 local giveWnd = mq.TLO.Window("GiveWnd")
 
@@ -42,7 +42,7 @@ local function handleRejections(givenItemIds)
             utils.debugOutput(" Destroying rejected item: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", cursorId)
             mq.cmd("/destroy")
         else
-            utils.output("\ayUnexpected item on cursor (ID: %d) after give — autoinventorying.", cursorId)
+            utils.output("\ayUnexpected item on cursor (ID: %d) after give - autoinventorying.", cursorId)
             mq.cmd("/autoinventory")
         end
         mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
@@ -129,7 +129,7 @@ end
 
 -- Direct Delivery
 
-function M.deliverDirect(entry, petSpawn, abortFunc)
+function delivery.deliverDirect(entry, petSpawn, abortFunc)
     utils.debugOutput(" deliverDirect: %s", entry.name)
     if not targetPet(petSpawn) then
         utils.output("\arFailed to target pet for direct delivery of %s.", entry.name)
@@ -146,7 +146,7 @@ end
 
 -- Cursor Delivery
 
-function M.deliverCursor(entry, petSpawn, abortFunc)
+function delivery.deliverCursor(entry, petSpawn, abortFunc)
     utils.debugOutput(" deliverCursor: %s (%d items)", entry.name, #entry.items)
     if not targetPet(petSpawn) then
         utils.output("\arFailed to target pet for cursor delivery of %s.", entry.name)
@@ -192,7 +192,7 @@ local function findItemInBag(packSlot, itemId)
     return nil
 end
 
-function M.deliverBag(entry, petSpawn, freeSlot, abortFunc)
+function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
     utils.debugOutput(" deliverBag: %s (%d items, freeSlot=pack%d)", entry.name, #entry.items, freeSlot)
     -- Cast once to produce the bag
     if not casting.useSource(entry, abortFunc) then
@@ -235,7 +235,7 @@ function M.deliverBag(entry, petSpawn, freeSlot, abortFunc)
     -- Target pet for giving
     if not targetPet(petSpawn) then
         utils.output("\arFailed to target pet for bag delivery of %s.", entry.name)
-        M.cleanupBag(entry, freeSlot)
+        delivery.cleanupBag(entry, freeSlot)
         return false
     end
 
@@ -264,14 +264,14 @@ function M.deliverBag(entry, petSpawn, freeSlot, abortFunc)
 
     local success = batchGive(petSpawn, itemFuncs, abortFunc)
 
-    M.cleanupBag(entry, freeSlot)
+    delivery.cleanupBag(entry, freeSlot)
 
     return success
 end
 
 -- Bag Cleanup
 
-function M.cleanupBag(entry, freeSlot)
+function delivery.cleanupBag(entry, freeSlot)
     local bagId = mq.TLO.InvSlot("pack" .. freeSlot).Item.ID()
     if not bagId then
         utils.debugOutput(" cleanupBag: pack%d already empty, nothing to clean", freeSlot)
@@ -323,7 +323,7 @@ function M.cleanupBag(entry, freeSlot)
                     mq.cmd("/destroy")
                     mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
                 else
-                    utils.output("\ayUnexpected item in bag (ID: %d) — autoinventorying.", mq.TLO.Cursor.ID())
+                    utils.output("\ayUnexpected item in bag (ID: %d) - autoinventorying.", mq.TLO.Cursor.ID())
                     mq.cmd("/autoinventory")
                     mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
                 end
@@ -348,4 +348,4 @@ function M.cleanupBag(entry, freeSlot)
     end
 end
 
-return M
+return delivery

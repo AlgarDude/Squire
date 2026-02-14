@@ -55,6 +55,7 @@ local editingIdx = nil
 local editSourceType = ""
 local editSourceName = ""
 local editSourceMethod = ""
+local showHelp = false
 
 -- Preset System
 
@@ -71,7 +72,7 @@ local function resolvePresets()
         local fileSuffix = emuServers[serverName]
         if not fileSuffix then
             fileSuffix = serverName:lower():gsub(" ", "")
-            utils.output("\ayServer '%s' not in emuServers table — trying '%s'. Add it to emuServers in init.lua.", serverName, fileSuffix)
+            utils.output("\ayServer '%s' not in emuServers table - trying '%s'. Add it to emuServers in init.lua.", serverName, fileSuffix)
         end
         presetFile = "squire.presets." .. fileSuffix
     else
@@ -87,8 +88,9 @@ local function resolvePresets()
     end
 
     local me = mq.TLO.Me
+    local myShortName = me.Class.ShortName()
     for _, definition in ipairs(rawPresets) do
-        local title = definition.title
+        local title = definition.title:gsub("Class", myShortName)
         if definition.classes then
             presetClassMap[title] = definition.classes
         end
@@ -98,8 +100,7 @@ local function resolvePresets()
             for _, candidate in ipairs(group) do
                 local available = false
                 if candidate.type == "spell" then
-                    local spell = me.Book(candidate.name)
-                    available = spell() ~= nil and (spell.Level() or 0) <= me.Level()
+                    available = me.Book(candidate.name)() ~= nil and (mq.TLO.Spell(candidate.name).Level() or 0) <= me.Level()
                 elseif candidate.type == "aa" then
                     available = (me.AltAbility(candidate.name).Rank() or 0) > 0
                 elseif candidate.type == "item" then
@@ -115,6 +116,7 @@ local function resolvePresets()
                         method = candidate.method,
                         items = candidate.items or {},
                         trashItems = candidate.trashItems or {},
+                        candidates = group,
                     })
                     break
                 end
@@ -243,7 +245,7 @@ end
 local function armPet(playerName, setName, fromTell)
     if aborted then
         utils.output("\arArming halted due to inventory error. Please resolve and restart the script.")
-        return "abort"
+        return false
     end
 
     -- 1. Resolve set
@@ -255,7 +257,7 @@ local function armPet(playerName, setName, fromTell)
         if fromTell then
             mq.cmdf('/tell %s Set "%s" not found.', playerName, setName)
         end
-        return "skipped"
+        return true
     end
 
     -- 2. Validate set has enabled entries
@@ -271,7 +273,7 @@ local function armPet(playerName, setName, fromTell)
     end
     if not hasEnabled then
         utils.output("\aySet '%s' has no enabled sources.", setName)
-        return "skipped"
+        return true
     end
 
     -- 3. Find pet
@@ -287,7 +289,7 @@ local function armPet(playerName, setName, fromTell)
         if fromTell then
             mq.cmdf("/tell %s You do not appear to have a pet.", playerName)
         end
-        return "skipped"
+        return true
     end
 
     -- 4. Range check
@@ -299,14 +301,14 @@ local function armPet(playerName, setName, fromTell)
                 if fromTell then
                     mq.cmdf("/tell %s Your pet is out of range and I could not reach it.", playerName)
                 end
-                return "skipped"
+                return true
             end
         else
             utils.output("\ay%s's pet is out of range (%.0f). Skipping.", playerName, petDist)
             if fromTell then
                 mq.cmdf("/tell %s Your pet is out of range.", playerName)
             end
-            return "skipped"
+            return true
         end
     end
 
@@ -314,7 +316,7 @@ local function armPet(playerName, setName, fromTell)
     local cursorResult = utils.clearCursor(hasBagMethod)
     if cursorResult == "abort" then
         utils.output("\arCursor stuck. Aborting.")
-        return "abort"
+        return false
     end
 
     -- 6. Free top slot for bag methods
@@ -323,14 +325,14 @@ local function armPet(playerName, setName, fromTell)
         freeSlot = utils.ensureFreeTopSlot()
         if freeSlot == "abort" then
             utils.output("\arCannot free a top-level slot. Aborting.")
-            return "abort"
+            return false
         end
     end
 
     -- 7. Prepare spells
     if not casting.prepareSpells(set) then
         utils.output("\arFailed to prepare spells for set '%s'.", setName)
-        return "abort"
+        return false
     end
 
     -- 8. Execute delivery for each enabled source entry in order
@@ -396,7 +398,6 @@ local function armPet(playerName, setName, fromTell)
             end
         end
     end
-    local resultStr = (stopped or #failed > 0) and "partial" or "success"
 
     table.insert(armHistory, 1, {
         timestamp = os.date("%H:%M:%S"),
@@ -425,7 +426,7 @@ local function armPet(playerName, setName, fromTell)
         end
     end
 
-    return resultStr
+    return true
 end
 
 -- Set Validation
@@ -453,7 +454,7 @@ local function validateSet(setName)
                 available = mq.TLO.FindItem("=" .. entry.name)() ~= nil
                 label = string.format("Item '%s'", entry.name)
             end
-            utils.output("  [%d] %s (%s): %s — %s", i, entry.name, entry.method, label, available and "\agPASS" or "\arFAIL")
+            utils.output("  [%d] %s (%s) - %s", i, label, entry.method, available and "\agPASS" or "\arFAIL")
         end
     end
 end
@@ -510,7 +511,7 @@ local function processQueue()
 
         local result = armPet(request.playerName, request.setName, request.fromTell)
 
-        if result == "abort" then
+        if not result then
             aborted = true
             queue = {}
             break
@@ -534,7 +535,7 @@ local function processQueue()
 
     isArming = false
     stopRequested = false
-    statusText = aborted and "HALTED — inventory error" or "Idle"
+    statusText = aborted and "HALTED - inventory error" or "Idle"
 end
 
 -- Access Check
@@ -801,7 +802,6 @@ local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, head
                 currentSet[idx], currentSet[idx - 1] = currentSet[idx - 1], currentSet[idx]
                 settingsDirty = true
             end
-            if not preRender and imgui.IsItemHovered() then imgui.SetTooltip("Move Up") end
         else
             imgui.InvisibleButton("##up_spacer", 22, 1)
         end
@@ -812,7 +812,6 @@ local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, head
                 currentSet[idx], currentSet[idx + 1] = currentSet[idx + 1], currentSet[idx]
                 settingsDirty = true
             end
-            if not preRender and imgui.IsItemHovered() then imgui.SetTooltip("Move Down") end
         else
             imgui.InvisibleButton("##dn_spacer", 22, 1)
         end
@@ -824,13 +823,11 @@ local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, head
             editSourceName = entry.name
             editSourceMethod = entry.method
         end
-        if not preRender and imgui.IsItemHovered() then imgui.SetTooltip("Edit this Source") end
 
         imgui.SameLine()
         if imgui.SmallButton(icons.FA_TRASH) and preRender then
             pendingRemoveIdx = idx
         end
-        if not preRender and imgui.IsItemHovered() then imgui.SetTooltip("Delete this Source") end
     end
 
     imgui.PopID()
@@ -875,11 +872,13 @@ local function renderUI()
         imgui.TextColored(0, 1, 0, 1, statusText)
     end
 
-    -- Set selector + Edit Sets button
+    -- Set selector + Manage Sets button
     imgui.Text("Current Set:")
     imgui.SameLine()
     imgui.SetNextItemWidth(200)
-    if imgui.BeginCombo("##SetCombo", settings.selectedSet) then
+    local comboLabel = settings.selectedSet ~= "" and settings.selectedSet or "No Sets Found"
+    if settings.selectedSet == "" then imgui.PushStyleColor(ImGuiCol.Text, ImVec4(0.5, 0.5, 0.5, 1.0)) end
+    if imgui.BeginCombo("##SetCombo", comboLabel) then
         for _, name in ipairs(allNames) do
             if imgui.Selectable(name, name == settings.selectedSet) then
                 settings.selectedSet = name
@@ -891,8 +890,9 @@ local function renderUI()
         end
         imgui.EndCombo()
     end
+    if settings.selectedSet == "" then imgui.PopStyleColor() end
     imgui.SameLine()
-    if imgui.Button("Edit Sets") then
+    if imgui.Button("Manage") then
         showEditSets = not showEditSets
     end
 
@@ -901,27 +901,27 @@ local function renderUI()
     -- Arm Controls
     if isArming then imgui.BeginDisabled() end
     imgui.PushStyleVar(ImGuiStyleVar.FramePadding, 8, 6)
-    if imgui.Button("Arm Self") then
+    if imgui.Button("My Pet") then
         addToQueue("self", nil, false)
     end
     imgui.SameLine()
-    if imgui.Button("Arm Target") then
+    if imgui.Button("Target's Pet") then
         commandHandler("arm", "target")
     end
     imgui.SameLine()
-    if imgui.Button("Arm Group") then
+    if imgui.Button("Group Pets") then
         commandHandler("group")
     end
     imgui.SameLine()
-    if imgui.Button("Arm Raid") then
+    if imgui.Button("Raid Pets") then
         commandHandler("raid")
     end
     imgui.PopStyleVar()
 
-    imgui.Text("Arm a player:")
+    imgui.Text("Arm a player's pet:")
     imgui.SameLine()
     imgui.SetNextItemWidth(150)
-    manualPlayerName = imgui.InputText("##PlayerName", manualPlayerName)
+    manualPlayerName = imgui.InputTextWithHint("##PlayerName", "Player Name", manualPlayerName)
     imgui.SameLine()
     if imgui.Button("Arm") and manualPlayerName ~= "" then
         addToQueue(manualPlayerName, nil, false)
@@ -964,7 +964,7 @@ local function renderUI()
     if imgui.SmallButton(icons.FA_COGS) then
         showSettings = not showSettings
     end
-    if imgui.IsItemHovered() then imgui.SetTooltip("Open the Settings Panel") end
+    if imgui.IsItemHovered() then imgui.SetTooltip("Settings") end
 
     imgui.End()
 
@@ -977,10 +977,16 @@ local function renderUI()
             local changed
 
             imgui.Text("Trigger Word:")
+            if imgui.IsItemHovered() then
+                imgui.SetTooltip("If you receive a tell with this keyword, you will arm the sender's pet.")
+            end
             imgui.SameLine()
             imgui.SetNextItemWidth(150)
             local tw
-            tw, changed = imgui.InputText("##triggerWord", settings.triggerWord)
+            tw, changed = imgui.InputTextWithHint("##triggerWord", "e.g. squire", settings.triggerWord)
+            if imgui.IsItemHovered() then
+                imgui.SetTooltip("If you receive a tell with this keyword, you will arm the sender's pet.")
+            end
             if changed then
                 settings.triggerWord = tw
                 settingsDirty = true
@@ -1001,10 +1007,13 @@ local function renderUI()
 
             if settings.tellAccess == "allowlist" then
                 imgui.Text("Allow List:")
+                if imgui.IsItemHovered() then
+                    imgui.SetTooltip("If Allow List is selected, you will only react to keywords from the listed players.")
+                end
                 imgui.SameLine()
                 local alStr = table.concat(settings.tellAllowlist or {}, ", ")
                 imgui.SetNextItemWidth(250)
-                alStr, changed = imgui.InputText("##allowList", alStr)
+                alStr, changed = imgui.InputTextWithHint("##allowList", "Player1, Player2", alStr)
                 if changed then
                     settings.tellAllowlist = {}
                     for name in alStr:gmatch("([^,]+)") do
@@ -1019,10 +1028,13 @@ local function renderUI()
 
             if settings.tellAccess == "denylist" then
                 imgui.Text("Deny List:")
+                if imgui.IsItemHovered() then
+                    imgui.SetTooltip("If Deny List is selected, you will not react to keywords from the listed players.")
+                end
                 imgui.SameLine()
                 local dlStr = table.concat(settings.tellDenylist or {}, ", ")
                 imgui.SetNextItemWidth(250)
-                dlStr, changed = imgui.InputText("##denyList", dlStr)
+                dlStr, changed = imgui.InputTextWithHint("##denyList", "Player1, Player2", dlStr)
                 if changed then
                     settings.tellDenylist = {}
                     for name in dlStr:gmatch("([^,]+)") do
@@ -1035,11 +1047,14 @@ local function renderUI()
                 end
             end
 
-            settings.allowMovement, changed = imgui.Checkbox("Allow Movement (up to 100 units)", settings.allowMovement)
+            settings.allowMovement, changed = imgui.Checkbox("Allow Movement", settings.allowMovement)
+            if imgui.IsItemHovered() then
+                imgui.SetTooltip("Allow this PC to move up to 100 feet to arm a pet. Will return to the original location when complete.")
+            end
             if changed then
                 if settings.allowMovement and not mq.TLO.Plugin("mq2nav").IsLoaded() then
                     settings.allowMovement = false
-                    utils.output("\ayMQ2Nav not loaded — Allow Movement cannot be enabled.")
+                    utils.output("\ayMQ2Nav not loaded - Allow Movement cannot be enabled.")
                 end
                 settingsDirty = true
             end
@@ -1053,11 +1068,11 @@ local function renderUI()
         imgui.End()
     end
 
-    -- Edit Sets Window
+    -- Manage Sets Window
     if showEditSets then
         imgui.SetNextWindowSize(ImVec2(520, 450), ImGuiCond.FirstUseEver)
         imgui.SetNextWindowSizeConstraints(ImVec2(520, 200), ImVec2(800, 2000))
-        showEditSets = imgui.Begin("Edit Sets###SquireEditSets", showEditSets)
+        showEditSets = imgui.Begin("Manage Sets###SquireEditSets", showEditSets)
         if showEditSets then
             renderWindowBg()
             local allNames = getAllSetNames()
@@ -1080,6 +1095,14 @@ local function renderUI()
                 imgui.EndCombo()
             end
 
+            imgui.SameLine()
+            if imgui.SmallButton(icons.FA_QUESTION_CIRCLE .. "##Help") then
+                showHelp = true
+            end
+            if imgui.IsItemHovered() then
+                imgui.SetTooltip("Help")
+            end
+
             local resolveWidth = imgui.CalcTextSize("Rescan") + imgui.GetStyle().FramePadding.x * 2
             local validateWidth = imgui.CalcTextSize("Validate") + imgui.GetStyle().FramePadding.x * 2
             local spacing = imgui.GetStyle().ItemSpacing.x
@@ -1088,14 +1111,14 @@ local function renderUI()
                 resolvePresets()
             end
             if imgui.IsItemHovered() then
-                imgui.SetTooltip("Re-check which spells, AAs, and items your character has to resolve preset priority lists.")
+                imgui.SetTooltip("Re-resolve preset priority lists based on current spells, AAs, and items.")
             end
             imgui.SameLine()
             if imgui.Button("Validate") then
                 validateSet(settings.selectedSet)
             end
             if imgui.IsItemHovered() then
-                imgui.SetTooltip("Check that all sources in the selected set are available.")
+                imgui.SetTooltip("Check that all enabled sources in the set are available.")
             end
 
             -- Row 2: New Copy Rename Delete
@@ -1123,7 +1146,7 @@ local function renderUI()
             -- New popup
             if imgui.BeginPopup("NewSetPopup##Edit") then
                 imgui.Text("New Set Name:")
-                newSetName = imgui.InputText("##NewSetName", newSetName)
+                newSetName = imgui.InputTextWithHint("##NewSetName", "Set Name", newSetName)
                 if imgui.Button("Create") and newSetName ~= "" then
                     if not settings.sets[newSetName] and not presetSets[newSetName] then
                         settings.sets[newSetName] = {}
@@ -1142,7 +1165,7 @@ local function renderUI()
             -- Copy popup
             if imgui.BeginPopup("CopySetPopup##Edit") then
                 imgui.Text("Copy '%s' as:", settings.selectedSet)
-                newSetName = imgui.InputText("##CopySetName", newSetName)
+                newSetName = imgui.InputTextWithHint("##CopySetName", "Set Name", newSetName)
                 if imgui.Button("Copy##Confirm") and newSetName ~= "" then
                     if not settings.sets[newSetName] and not presetSets[newSetName] then
                         local sourceSet = getSet(settings.selectedSet)
@@ -1182,7 +1205,7 @@ local function renderUI()
             -- Rename popup
             if imgui.BeginPopup("RenameSetPopup##Edit") then
                 imgui.Text("Rename '%s' to:", settings.selectedSet)
-                renameSetName = imgui.InputText("##RenameSetName", renameSetName)
+                renameSetName = imgui.InputTextWithHint("##RenameSetName", "Set Name", renameSetName)
                 if imgui.Button("Rename##Confirm") and renameSetName ~= "" and renameSetName ~= settings.selectedSet then
                     if not settings.sets[renameSetName] and not presetSets[renameSetName] then
                         settings.sets[renameSetName] = settings.sets[settings.selectedSet]
@@ -1205,7 +1228,7 @@ local function renderUI()
                 if imgui.Button("Yes, Delete") then
                     settings.sets[settings.selectedSet] = nil
                     local firstSet = next(settings.sets) or next(presetSets)
-                    settings.selectedSet = firstSet or "Default"
+                    settings.selectedSet = firstSet or ""
                     settingsDirty = true
                     imgui.CloseCurrentPopup()
                 end
@@ -1245,10 +1268,9 @@ local function renderUI()
 
                     -- Expanded content: item management
                     if headerOpen and entry.method ~= "direct" then
-                        if not editable then imgui.BeginDisabled() end
                         imgui.Indent()
 
-                        imgui.Text("Items to Trade:")
+                        imgui.Text("Items to Give:")
                         local removeItemIdx = nil
                         for j, item in ipairs(entry.items) do
                             imgui.PushID("##item_" .. j)
@@ -1344,7 +1366,21 @@ local function renderUI()
                         end
 
                         imgui.Unindent()
-                        if not editable then imgui.EndDisabled() end
+                    end
+
+                    if headerOpen and entry.candidates and #entry.candidates > 1 then
+                        imgui.Indent()
+                        imgui.Separator()
+                        imgui.Text("Priority List:")
+                        for _, candidate in ipairs(entry.candidates) do
+                            local label = string.format("%s (%s)", candidate.name, candidate.type)
+                            if candidate.name == entry.name then
+                                imgui.TextColored(0.4, 0.9, 0.4, 1, label)
+                            else
+                                imgui.TextDisabled(label)
+                            end
+                        end
+                        imgui.Unindent()
                     end
 
                     imgui.PopID()
@@ -1423,7 +1459,7 @@ local function renderUI()
                 imgui.Text(nsLabel)
                 imgui.SameLine()
                 imgui.SetNextItemWidth(250)
-                newSourceName = imgui.InputText("##newName", newSourceName)
+                newSourceName = imgui.InputTextWithHint("##newName", "Exact In-Game Name", newSourceName)
 
                 local nmIdx = 1
                 for m, mt in ipairs(methodTypes) do
@@ -1493,7 +1529,7 @@ local function renderUI()
                 imgui.Text(sourceLabels[tIdx] .. " Name:")
                 imgui.SameLine()
                 imgui.SetNextItemWidth(250)
-                editSourceName = imgui.InputText("##editName", editSourceName)
+                editSourceName = imgui.InputTextWithHint("##editName", "Exact In-Game Name", editSourceName)
 
                 local mIdx = 1
                 for m, mt in ipairs(methodTypes) do
@@ -1528,6 +1564,83 @@ local function renderUI()
         end
     end
 
+    -- Help Window
+    if showHelp then
+        imgui.SetNextWindowSize(ImVec2(575, 600), ImGuiCond.FirstUseEver)
+        imgui.SetNextWindowSizeConstraints(ImVec2(575, 600), ImVec2(800, 2000))
+        showHelp = imgui.Begin("Squire Help###SquireHelp", showHelp)
+        if showHelp then
+            renderWindowBg()
+
+            local headColor = ImVec4(0.6, 0.85, 1.0, 1.0)
+            local bodyColor = ImVec4(0.78, 0.74, 0.6, 1.0)
+
+            imgui.PushStyleColor(ImGuiCol.Text, headColor)
+            imgui.SeparatorText("Glossary")
+            imgui.PopStyleColor()
+            imgui.Spacing()
+            imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
+            imgui.Bullet()
+            imgui.TextWrapped("Source - A spell, AA, or clickie that makes gear for a pet")
+            imgui.Bullet()
+            imgui.TextWrapped("Set - A list of sources to give a pet")
+            imgui.Bullet()
+            imgui.TextWrapped("Preset - A ready-made set that picks the best sources you have")
+            imgui.Bullet()
+            imgui.TextWrapped("Rescan - Rechecks what spells, AAs, and items you have to update presets")
+            imgui.Bullet()
+            imgui.TextWrapped("Validate - Makes sure everything in the current set is still available")
+            imgui.PopStyleColor()
+
+            imgui.NewLine()
+            imgui.PushStyleColor(ImGuiCol.Text, headColor)
+            imgui.SeparatorText("Delivery Methods")
+            imgui.PopStyleColor()
+            imgui.Spacing()
+            imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
+            imgui.BulletText(methodLabels[1])
+            imgui.Indent()
+            imgui.TextWrapped("Equips an item directly on the pet. No items to set up.")
+            imgui.Unindent()
+            imgui.Spacing()
+            imgui.BulletText(methodLabels[2])
+            imgui.Indent()
+            imgui.TextWrapped("Places an item on your cursor. Squire gives it to the pet.")
+            imgui.Unindent()
+            imgui.Spacing()
+            imgui.BulletText(methodLabels[3])
+            imgui.Indent()
+            imgui.TextWrapped(
+                "Places a bag on your cursor. Squire gives the pet \"Items to Give\" " ..
+                "from the bag, and destroys \"Items to Discard\".")
+            imgui.Unindent()
+            imgui.PopStyleColor()
+
+            imgui.NewLine()
+            imgui.PushStyleColor(ImGuiCol.Text, headColor)
+            imgui.SeparatorText("Adding a Source")
+            imgui.PopStyleColor()
+            imgui.Spacing()
+            imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
+            imgui.Indent()
+            imgui.TextWrapped("1. Click \"Add Source\" at the bottom of the source list.")
+            imgui.Spacing()
+            imgui.TextWrapped("2. Pick the type (Spell, AA, or Item) and enter the exact in-game name.")
+            imgui.Spacing()
+            imgui.TextWrapped("3. Choose the delivery method.")
+            imgui.Spacing()
+            imgui.TextWrapped(
+                "4. For Cursor/Bag methods: expand the source, put the summoned item on your cursor, " ..
+                "click \"Add from Cursor\". Repeat for each item the pet should get.")
+            imgui.Spacing()
+            imgui.TextWrapped(
+                "5. For Bag method: also capture any leftover junk under \"Items to Discard\".")
+            imgui.Unindent()
+            imgui.PopStyleColor()
+        end
+        imgui.End()
+    end
+
     imgui.PopStyleVar(5)
 end
 
@@ -1539,15 +1652,17 @@ local function startup()
     resolvePresets()
 
     if not getSet(settings.selectedSet) then
-        local firstSet = next(settings.sets) or next(presetSets)
+        local firstSet = next(settings.sets)
         if firstSet then
             settings.selectedSet = firstSet
-            settingsDirty = true
+        else
+            settings.selectedSet = ""
         end
+        settingsDirty = true
     end
 
     -- Auto-class selection on first load (no user sets, default selectedSet)
-    if next(settings.sets) == nil and settings.selectedSet == "Default" then
+    if next(settings.sets) == nil and settings.selectedSet == "" then
         local myClass = mq.TLO.Me.Class.ShortName()
         for presetName, classes in pairs(presetClassMap) do
             for _, cls in ipairs(classes) do
@@ -1565,7 +1680,7 @@ local function startup()
     if settings.allowMovement and not mq.TLO.Plugin("mq2nav").IsLoaded() then
         settings.allowMovement = false
         settingsDirty = true
-        utils.output("\ayMQ2Nav not loaded — Allow Movement disabled.")
+        utils.output("\ayMQ2Nav not loaded - Allow Movement disabled.")
     end
 
     if settingsDirty then
