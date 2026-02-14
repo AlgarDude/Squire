@@ -127,7 +127,6 @@ local function resolvePresets()
 
     local presetCount = 0
     for _ in pairs(presetSets) do presetCount = presetCount + 1 end
-    utils.output("Resolved %d preset set(s).", presetCount)
 end
 
 local function getSet(setName)
@@ -431,33 +430,6 @@ end
 
 -- Set Validation
 
-local function validateSet(setName)
-    local set = getSet(setName)
-    if not set then
-        utils.output("\arSet '%s' not found.", setName)
-        return
-    end
-
-    utils.output("Validating set '%s'...", setName)
-    local me = mq.TLO.Me
-    for i, entry in ipairs(set) do
-        if entry.enabled then
-            local available = false
-            local label = ""
-            if entry.type == "spell" then
-                available = me.Book(entry.name)() ~= nil
-                label = string.format("Spell '%s'", entry.name)
-            elseif entry.type == "aa" then
-                available = (me.AltAbility(entry.name).Rank() or 0) > 0
-                label = string.format("AA '%s'", entry.name)
-            elseif entry.type == "item" then
-                available = mq.TLO.FindItem("=" .. entry.name)() ~= nil
-                label = string.format("Item '%s'", entry.name)
-            end
-            utils.output("  [%d] %s (%s) - %s", i, label, entry.method, available and "\agPASS" or "\arFAIL")
-        end
-    end
-end
 
 -- Queue & Processing
 
@@ -1078,7 +1050,7 @@ local function renderUI()
             local allNames = getAllSetNames()
             local isPreset = isPresetSet(settings.selectedSet)
 
-            -- Row 1: Set selector + right-aligned Rescan/Validate
+            -- Row 1: Set selector + right-aligned Rescan/Help
             imgui.Text("Set:")
             imgui.SameLine()
             imgui.SetNextItemWidth(200)
@@ -1095,30 +1067,22 @@ local function renderUI()
                 imgui.EndCombo()
             end
 
+            local refreshWidth = imgui.CalcTextSize(icons.FA_REFRESH) + imgui.GetStyle().FramePadding.x * 2
+            local helpWidth = imgui.CalcTextSize(icons.FA_QUESTION_CIRCLE) + imgui.GetStyle().FramePadding.x * 2
+            local spacing = imgui.GetStyle().ItemSpacing.x
+            imgui.SameLine(imgui.GetContentRegionAvail() - refreshWidth - helpWidth - spacing + imgui.GetCursorPosX())
+            if imgui.Button(icons.FA_REFRESH .. "##Rescan") then
+                resolvePresets()
+            end
+            if imgui.IsItemHovered() then
+                imgui.SetTooltip("Updates the preset by rechecking your current spells, AAs, and items.")
+            end
             imgui.SameLine()
             if imgui.SmallButton(icons.FA_QUESTION_CIRCLE .. "##Help") then
                 showHelp = true
             end
             if imgui.IsItemHovered() then
                 imgui.SetTooltip("Help")
-            end
-
-            local resolveWidth = imgui.CalcTextSize("Rescan") + imgui.GetStyle().FramePadding.x * 2
-            local validateWidth = imgui.CalcTextSize("Validate") + imgui.GetStyle().FramePadding.x * 2
-            local spacing = imgui.GetStyle().ItemSpacing.x
-            imgui.SameLine(imgui.GetContentRegionAvail() - resolveWidth - validateWidth - spacing + imgui.GetCursorPosX())
-            if imgui.Button("Rescan") then
-                resolvePresets()
-            end
-            if imgui.IsItemHovered() then
-                imgui.SetTooltip("Re-resolve preset priority lists based on current spells, AAs, and items.")
-            end
-            imgui.SameLine()
-            if imgui.Button("Validate") then
-                validateSet(settings.selectedSet)
-            end
-            if imgui.IsItemHovered() then
-                imgui.SetTooltip("Check that all enabled sources in the set are available.")
             end
 
             -- Row 2: New Copy Rename Delete
@@ -1586,10 +1550,6 @@ local function renderUI()
             imgui.TextWrapped("Set - A list of sources to give a pet")
             imgui.Bullet()
             imgui.TextWrapped("Preset - A ready-made set that picks the best sources you have")
-            imgui.Bullet()
-            imgui.TextWrapped("Rescan - Rechecks what spells, AAs, and items you have to update presets")
-            imgui.Bullet()
-            imgui.TextWrapped("Validate - Makes sure everything in the current set is still available")
             imgui.PopStyleColor()
 
             imgui.NewLine()
@@ -1618,23 +1578,24 @@ local function renderUI()
 
             imgui.NewLine()
             imgui.PushStyleColor(ImGuiCol.Text, headColor)
-            imgui.SeparatorText("Adding a Source")
+            imgui.SeparatorText("How to Add Items")
             imgui.PopStyleColor()
             imgui.Spacing()
             imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
             imgui.Indent()
-            imgui.TextWrapped("1. Click \"Add Source\" at the bottom of the source list.")
+            imgui.TextWrapped("1. Click \"Add Source\" at the bottom of the \"Manage Sets\" window.")
             imgui.Spacing()
-            imgui.TextWrapped("2. Pick the type (Spell, AA, or Item) and enter the exact in-game name.")
+            imgui.TextWrapped("2. Pick the source type (Spell, AA, or Item) and enter the exact in-game name.")
             imgui.Spacing()
-            imgui.TextWrapped("3. Choose the delivery method.")
-            imgui.Spacing()
-            imgui.TextWrapped(
-                "4. For Cursor/Bag methods: expand the source, put the summoned item on your cursor, " ..
-                "click \"Add from Cursor\". Repeat for each item the pet should get.")
+            imgui.TextWrapped("3. Choose the delivery method (see above).")
             imgui.Spacing()
             imgui.TextWrapped(
-                "5. For Bag method: also capture any leftover junk under \"Items to Discard\".")
+                "4. Cursor or Bag methods: Anything the pet should receive should be added to \"Items to Give\". " ..
+                "Put the summoned item on your cursor and click \"Add from Cursor\".")
+            imgui.Spacing()
+            imgui.TextWrapped(
+                "5. Bag method only: Anything that should be cleaned up afterwards (including the bag) " ..
+                "should be added to \"Items to Discard\".")
             imgui.Unindent()
             imgui.PopStyleColor()
         end
@@ -1688,7 +1649,8 @@ local function startup()
         settingsDirty = false
     end
 
-    utils.output("Loaded. Use \ag/squire help\ax for a list of commands.")
+    utils.output("by \aoAlgar\ax (\a-tgithub.com/AlgarDude/Squire\ax)")
+    utils.output("Use \ag/squire help\ax for a list of commands.")
 end
 
 -- Main
