@@ -26,16 +26,12 @@ local settingsDirty = false
 local savedGems = nil
 local statusText = "Idle"
 
+-- claude: methodTypes and methodLabels seems obtuse, can't you just use keys to make this one table? Explain/verify before changing this.
 local methodTypes = { "cursor", "bag", "direct", }
 local methodLabels = { "Summon Single Item", "Summon Bag", "Direct to Pet", }
+-- claude: sourceType and sourceLabels do not seem like they need to be two tables. Explain/verify before changing this.
 local sourceTypes = { "spell", "aa", "item", }
 local sourceLabels = { "Spell", "AA", "Item", }
-
--- EMU server name -> preset file suffix
-local emuServers = {
-    ["EQ Might"] = "eqmight",
-    ["Project Lazarus"] = "projectlazarus",
-}
 
 local tellAccessOptions = { "anyone", "group", "raid", "allowlist", "denylist", }
 local tellAccessLabels = { "Anyone", "Group Only", "Raid Only", "Allow List", "Deny List", }
@@ -57,6 +53,12 @@ local editSourceName = ""
 local editSourceMethod = ""
 local showHelp = false
 
+
+-- Claude: General cleanup notes:
+-- why do we have all of these single-use variables that are simple enough to use inline? review my preferences.
+-- we need to reexamine and discuss the use of libraries, i don't think we are utilizing them well. some of this stuff can be pushed out. we may want a new folder for them to keep the file structure clean
+-- cache mq.TLO.Me and "myClass" at the module level. add a check in the loop, if current class does not equal the cached value (persona class change on live) then rescan sets. if this won't work, discuss it with me.
+-- add explicit checks for nav being loaded on startup... warn the user that nav features will be disabled if you do not detect it. refactor use of nav to integrate the fact that we checked this (don't skip safety checks that could lead to crash conditions)
 -- Preset System
 
 local presetClassMap = {}
@@ -65,15 +67,11 @@ local function resolvePresets()
     presetSets = {}
     presetClassMap = {}
 
-    local isEmu = mq.TLO.MacroQuest.BuildName():lower() == "emu"
     local presetFile
-    if isEmu then
+    if mq.TLO.MacroQuest.BuildName():lower() == "emu" then
         local serverName = mq.TLO.EverQuest.Server()
-        local fileSuffix = emuServers[serverName]
-        if not fileSuffix then
-            fileSuffix = serverName:lower():gsub(" ", "")
-            utils.output("\ayServer '%s' not in emuServers table - trying '%s'. Add it to emuServers in init.lua.", serverName, fileSuffix)
-        end
+        -- if we wish to deviate from this scheme later we can use a lookup table
+        local fileSuffix = serverName:lower():gsub(" ", "")
         presetFile = "squire.presets." .. fileSuffix
     else
         presetFile = "squire.presets.live"
@@ -88,9 +86,8 @@ local function resolvePresets()
     end
 
     local me = mq.TLO.Me
-    local myShortName = me.Class.ShortName()
     for _, definition in ipairs(rawPresets) do
-        local title = definition.title:gsub("Class", myShortName)
+        local title = definition.title:gsub("Class", me.Class.ShortName())
         if definition.classes then
             presetClassMap[title] = definition.classes
         end
@@ -260,6 +257,7 @@ local function armPet(playerName, setName, fromTell)
     end
 
     -- 2. Validate set has enabled entries
+    -- claude: Clean up these variables. this is convoluted
     local hasEnabled = false
     local hasBagMethod = false
     for _, entry in ipairs(set) do
@@ -1697,10 +1695,9 @@ local function startup()
 
     -- Auto-class selection on first load (no user sets, default selectedSet)
     if next(settings.sets) == nil and settings.selectedSet == "" then
-        local myClass = mq.TLO.Me.Class.ShortName()
         for presetName, classes in pairs(presetClassMap) do
-            for _, cls in ipairs(classes) do
-                if cls == myClass then
+            for _, class in ipairs(classes) do
+                if class == mq.TLO.Me.Class.ShortName() then
                     settings.selectedSet = presetName
                     settingsDirty = true
                     utils.output("Auto-selected preset '%s' based on class.", presetName)
