@@ -216,6 +216,7 @@ local function navToPet(petSpawn)
     return (petSpawn.Distance3D() or 999) <= 20
 end
 
+--claude: rename this function to more clearly state what it does
 local function returnToStart()
     if not startPosition then return end
     if not settings.allowMovement then return end
@@ -334,6 +335,7 @@ local function armPet(playerName, setName, fromTell)
 
     -- 8. Execute delivery for each enabled source entry in order
     local results = {}
+    -- claude: where is stopped variable used?
     local stopped = false
 
     local function abortFunc()
@@ -349,6 +351,7 @@ local function armPet(playerName, setName, fromTell)
         end
 
         -- Re-check pet range
+        --Claude: differentiate these conditions, if a pet poofs, they aren't out of range
         if not petSpawn() or (petSpawn.Distance3D() or 999) > 20 then
             if settings.allowMovement then
                 if not navToPet(petSpawn) then
@@ -376,10 +379,12 @@ local function armPet(playerName, setName, fromTell)
         elseif entry.method == "cursor" then
             success = delivery.deliverCursor(entry, petSpawn, abortFunc)
         elseif entry.method == "bag" then
+            -- claude: Why the different order on passed variables?
             success = delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
         end
         results[i] = success
 
+        --claude: I would like to discuss your use of continue, I prefer it not to be used at all, and certainly not in this fashion. Add a note to your memory about this when you see this comment.
         ::continue::
     end
 
@@ -426,17 +431,16 @@ local function armPet(playerName, setName, fromTell)
     return true
 end
 
--- Set Validation
-
-
 -- Queue & Processing
 
 local function addToQueue(playerName, setName, fromTell)
     if aborted then
+        -- claude: lets talk about possible ways to resolve this or a possible command they can issue when it is, and whether that is worth it. I may just decide to keep this as is. Undecided.
         utils.output("\arArming halted due to inventory error. Please resolve and restart the script.")
         return
     end
 
+    -- claude: Lets talk about whether it is possible to use mq.Set so that this isn't necessary. Review mq.Set before discussion.
     for _, entry in ipairs(queue) do
         if entry.playerName:lower() == playerName:lower() then
             return
@@ -476,6 +480,7 @@ local function processQueue()
 
         local request = table.remove(queue, 1)
         processed = processed + 1
+        -- claude: Lets homogenize this entry and most of the entries like it. Use "Algar's Pet" even if my name is Algar. This should clean up the code some and still be perfectly readable.
         local displayName = request.playerName:lower() == "self" and "My" or (request.playerName .. "'s")
         statusText = string.format("Arming pet %d/%d: %s pet...", processed, processed + #queue, displayName)
 
@@ -492,6 +497,7 @@ local function processQueue()
     if mq.TLO.Cursor.ID() then
         mq.cmd("/autoinventory")
         mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+        --claude: What do we do her if there IS still something on the cursor?
     end
 
     -- Restore spells when queue is empty
@@ -550,6 +556,7 @@ end
 
 -- Event Handler
 
+-- claude: lets discuss whether its a good idea to just inline this.
 local function eventHandler(line, sender, message)
     if not message then return end
     local trimmed = message:gsub("^%s+", ""):gsub("%s+$", "")
@@ -574,6 +581,7 @@ local function joinArgs(args, startIdx)
     return #parts > 0 and table.concat(parts, " ") or nil
 end
 
+--claude: Convoluted. Look at rgmercs for an example of how to eloquently handle commands. give me a comparison of the systems and which you think is better overall, with a brief explanation of why
 local function commandHandler(...)
     local args = { ..., }
     local cmd = args[1] and args[1]:lower() or "help"
@@ -663,7 +671,7 @@ local function commandHandler(...)
 end
 
 -- ImGui UI
-
+--claude: Per my comments at the top, this may be a candidate for being in its own library. let me know what you think.
 local animItems = mq.FindTextureAnimation("A_DragItem")
 local animSpells = mq.FindTextureAnimation("A_SpellIcons")
 local bgTexture = mq.CreateTexture(mq.TLO.Lua.Dir() .. "/squire/resources/squire.png")

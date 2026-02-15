@@ -7,12 +7,12 @@ local mq = require('mq')
 local utils = require('squire.utils')
 
 local casting = {}
-
 local gemMap = {}
 
 -- Spell Memorization
 
 function casting.memorizeSpell(gemSlot, spellName)
+    -- claude: I feel like this should be a global variable, as often as it is called. tell me what you think.
     local me = mq.TLO.Me
 
     if not me.Book(spellName)() then
