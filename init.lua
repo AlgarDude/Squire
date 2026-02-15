@@ -57,7 +57,7 @@ local showHelp = false
 -- Claude: General cleanup notes:
 -- why do we have all of these single-use variables that are simple enough to use inline? review my preferences.
 -- we need to reexamine and discuss the use of libraries, i don't think we are utilizing them well. some of this stuff can be pushed out. we may want a new folder for them to keep the file structure clean
--- cache mq.TLO.Me and "myClass" at the module level. add a check in the loop, if current class does not equal the cached value (persona class change on live) then rescan sets. if this won't work, discuss it with me.
+-- cache mq.TLO.Me and what you call "myClass" at the module level. add a check in the loop, if current class does not equal the cached value (persona class change on live) then rescan sets. if this won't work, discuss it with me.
 -- add explicit checks for nav being loaded on startup... warn the user that nav features will be disabled if you do not detect it. refactor use of nav to integrate the fact that we checked this (don't skip safety checks that could lead to crash conditions)
 -- Preset System
 
