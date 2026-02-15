@@ -15,10 +15,12 @@ local giveWnd = mq.TLO.Window("GiveWnd")
 
 local function targetPet(petSpawn)
     petSpawn.DoTarget()
+    --claude: fail faster. that applies to almost all of these. take a look at where you could trim delays overall.
     mq.delay(3000, function() return mq.TLO.Target.ID() == petSpawn.ID() end)
     return mq.TLO.Target.ID() == petSpawn.ID()
 end
 
+--claude: should this just be inlined?
 local function openGiveWindow(petSpawn)
     if giveWnd.Open() then return true end
     mq.cmd("/nomodkey /click left target")
@@ -26,6 +28,7 @@ local function openGiveWindow(petSpawn)
     return giveWnd.Open()
 end
 
+--claude: should this just be inlined?
 local function clickGive()
     mq.cmd("/notify GiveWnd GVW_Give_Button leftmouseup")
     mq.delay(5000, function() return not giveWnd.Open() end)
@@ -76,6 +79,7 @@ local function batchGive(petSpawn, itemFuncs, abortFunc)
             break
         end
 
+        --claude: Is batchstart + 3 always "4" here?
         local batchEnd = math.min(batchStart + 3, #itemFuncs)
         utils.debugOutput(" Batch %d-%d of %d", batchStart, batchEnd, #itemFuncs)
         local givenIds = {}
@@ -91,6 +95,7 @@ local function batchGive(petSpawn, itemFuncs, abortFunc)
             if not itemFunc.getItem() then
                 allSuccess = false
             else
+                -- claude: look for possible helpers or refactor here
                 -- Verify item ID on cursor
                 if mq.TLO.Cursor.ID() ~= itemFunc.id then
                     utils.output("\arWrong item on cursor (expected %d, got %d). Autoinventorying.", itemFunc.id, mq.TLO.Cursor.ID() or 0)
