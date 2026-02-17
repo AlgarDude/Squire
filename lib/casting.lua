@@ -4,17 +4,15 @@
 ]]
 
 local mq = require('mq')
-local utils = require('squire.utils')
+local utils = require('squire.lib.utils')
 
 local casting = {}
 local gemMap = {}
+local me = mq.TLO.Me
 
 -- Spell Memorization
 
 function casting.memorizeSpell(gemSlot, spellName)
-    -- claude: I feel like this should be a global variable, as often as it is called. tell me what you think.
-    local me = mq.TLO.Me
-
     if not me.Book(spellName)() then
         utils.output("\ar%s is not in spellbook.", spellName)
         return false
@@ -77,7 +75,7 @@ function casting.prepareSpells(set)
         return gemMap
     end
 
-    local nextGem = mq.TLO.Me.NumGems()
+    local nextGem = me.NumGems()
     for _, spellName in ipairs(spellNames) do
         if nextGem < 1 then
             utils.output("\arNot enough gem slots for all spells.")
@@ -101,7 +99,7 @@ end
 
 function casting.restoreSpells(savedGems)
     for gemSlot, spellName in pairs(savedGems) do
-        if spellName ~= "" and mq.TLO.Me.Gem(gemSlot)() ~= spellName then
+        if spellName ~= "" and me.Gem(gemSlot)() ~= spellName then
             casting.memorizeSpell(gemSlot, spellName)
         end
     end
@@ -111,10 +109,10 @@ end
 
 local function waitForCastComplete(abortFunc)
     -- Wait for casting to start (up to 1s)
-    mq.delay(1000, function() return mq.TLO.Me.Casting() ~= nil end)
+    mq.delay(1000, function() return me.Casting() ~= nil end)
 
     -- Wait for casting to finish
-    utils.waitFor(function() return not mq.TLO.Me.Casting() end, 30000, 100, abortFunc)
+    utils.waitFor(function() return not me.Casting() end, 30000, 100, abortFunc)
 end
 
 function casting.useSource(entry, abortFunc)
@@ -125,7 +123,7 @@ function casting.useSource(entry, abortFunc)
             return false
         end
 
-        if not utils.waitFor(function() return mq.TLO.Me.SpellReady(gem)() end, 30000, 100, abortFunc) then
+        if not utils.waitFor(function() return me.SpellReady(gem)() end, 30000, 100, abortFunc) then
             utils.output("\arSpell %s not ready in time.", entry.name)
             return false
         end
@@ -135,7 +133,7 @@ function casting.useSource(entry, abortFunc)
         waitForCastComplete(abortFunc)
         return true
     elseif entry.type == "aa" then
-        if not utils.waitFor(function() return mq.TLO.Me.AltAbilityReady(entry.name)() end, 30000, 100, abortFunc) then
+        if not utils.waitFor(function() return me.AltAbilityReady(entry.name)() end, 30000, 100, abortFunc) then
             utils.output("\arAA %s not ready in time.", entry.name)
             return false
         end
@@ -145,7 +143,7 @@ function casting.useSource(entry, abortFunc)
         waitForCastComplete(abortFunc)
         return true
     elseif entry.type == "item" then
-        if not utils.waitFor(function() return mq.TLO.Me.ItemReady(entry.name)() end, 30000, 100, abortFunc) then
+        if not utils.waitFor(function() return me.ItemReady(entry.name)() end, 30000, 100, abortFunc) then
             utils.output("\arItem %s not ready in time.", entry.name)
             return false
         end

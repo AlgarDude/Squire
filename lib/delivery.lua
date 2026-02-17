@@ -1,42 +1,106 @@
 --[[
     Squire - delivery.lua
-    Item delivery to pets via GiveWnd: direct, cursor, and bag methods
+    Item delivery to pets via GiveWnd and navigation
 ]]
 
 local mq = require('mq')
-local utils = require('squire.utils')
-local casting = require('squire.casting')
+local utils = require('squire.lib.utils')
+local casting = require('squire.lib.casting')
 
 local delivery = {}
 
 local giveWnd = mq.TLO.Window("GiveWnd")
 
+-- Navigation
+
+local startPosition = nil
+
+delivery.navLoaded = mq.TLO.Plugin('MQ2Nav').IsLoaded()
+
+local function distSqFromStart(y, x, z)
+    if not startPosition then return 0 end
+    local dy = y - startPosition.y
+    local dx = x - startPosition.x
+    local dz = z - startPosition.z
+    return dy * dy + dx * dx + dz * dz
+end
+
+function delivery.navToPet(petSpawn)
+    if not delivery.navLoaded then return false end
+    if not petSpawn() or not petSpawn.ID() then return false end
+
+    if not startPosition then
+        startPosition = {
+            y = mq.TLO.Me.Y(),
+            x = mq.TLO.Me.X(),
+            z = mq.TLO.Me.Z(),
+        }
+    end
+
+    if distSqFromStart(petSpawn.Y(), petSpawn.X(), petSpawn.Z()) > 10000 then
+        utils.output("\ayPet is beyond leash range (100 units from start). Skipping.")
+        return false
+    end
+
+    local nav = mq.TLO.Navigation
+    local navCmd = string.format("id %d dist=15", petSpawn.ID())
+    if not nav.PathExists(navCmd)() then
+        utils.output("\ayNo nav path to pet. Skipping.")
+        return false
+    end
+
+    mq.cmdf("/nav %s", navCmd)
+    mq.delay(1000, function() return nav.Active() end)
+
+    mq.delay(15000, function()
+        return not nav.Active() or (petSpawn.Distance3D() or 999) <= 20
+    end)
+
+    if nav.Active() then
+        mq.cmd("/nav stop")
+    end
+
+    -- Wait for character to fully stop moving before casting
+    mq.delay(2000, function() return not mq.TLO.Me.Moving() end)
+
+    return (petSpawn.Distance3D() or 999) <= 20
+end
+
+function delivery.navToStart(allowMovement)
+    if not startPosition then return end
+    if not allowMovement then return end
+    if not delivery.navLoaded then return end
+
+    local nav = mq.TLO.Navigation
+    local navCmd = string.format("locyxz %.2f %.2f %.2f", startPosition.y, startPosition.x, startPosition.z)
+    if not nav.PathExists(navCmd)() then
+        utils.output("\ayNo nav path back to start position.")
+        return
+    end
+
+    mq.cmdf("/nav %s", navCmd)
+    mq.delay(1000, function() return nav.Active() end)
+    mq.delay(15000, function() return not nav.Active() end)
+
+    if nav.Active() then
+        mq.cmd("/nav stop")
+    end
+end
+
+function delivery.clearStartPosition()
+    startPosition = nil
+end
+
 -- GiveWnd Helpers
 
 local function targetPet(petSpawn)
     petSpawn.DoTarget()
-    --claude: fail faster. that applies to almost all of these. take a look at where you could trim delays overall.
-    mq.delay(3000, function() return mq.TLO.Target.ID() == petSpawn.ID() end)
+    mq.delay(1500, function() return mq.TLO.Target.ID() == petSpawn.ID() end)
     return mq.TLO.Target.ID() == petSpawn.ID()
 end
 
---claude: should this just be inlined?
-local function openGiveWindow(petSpawn)
-    if giveWnd.Open() then return true end
-    mq.cmd("/nomodkey /click left target")
-    mq.delay(3000, function() return giveWnd.Open() end)
-    return giveWnd.Open()
-end
-
---claude: should this just be inlined?
-local function clickGive()
-    mq.cmd("/notify GiveWnd GVW_Give_Button leftmouseup")
-    mq.delay(5000, function() return not giveWnd.Open() end)
-    return not giveWnd.Open()
-end
-
 local function handleRejections(givenItemIds)
-    -- After Give click, cursor may have rejected items — loop until cursor clear
+    -- After Give click, cursor may have rejected items - loop until cursor clear
     local maxLoops = 8
     while mq.TLO.Cursor.ID() and maxLoops > 0 do
         maxLoops = maxLoops - 1
@@ -48,16 +112,16 @@ local function handleRejections(givenItemIds)
             utils.output("\ayUnexpected item on cursor (ID: %d) after give - autoinventorying.", cursorId)
             mq.cmd("/autoinventory")
         end
-        mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
     end
 end
 
 local function placeCursorItemInGiveWindow(petSpawn)
     -- First item opens GiveWnd, subsequent items fill the next slot
     if not giveWnd.Open() then
-        if not openGiveWindow(petSpawn) then
-            return false
-        end
+        mq.cmd("/nomodkey /click left target")
+        mq.delay(3000, function() return giveWnd.Open() end)
+        if not giveWnd.Open() then return false end
     else
         mq.cmd("/nomodkey /click left target")
         mq.delay(500)
@@ -79,7 +143,6 @@ local function batchGive(petSpawn, itemFuncs, abortFunc)
             break
         end
 
-        --claude: Is batchstart + 3 always "4" here?
         local batchEnd = math.min(batchStart + 3, #itemFuncs)
         utils.debugOutput(" Batch %d-%d of %d", batchStart, batchEnd, #itemFuncs)
         local givenIds = {}
@@ -92,36 +155,34 @@ local function batchGive(petSpawn, itemFuncs, abortFunc)
             end
 
             local itemFunc = itemFuncs[i]
-            if not itemFunc.getItem() then
-                allSuccess = false
+            local ok = itemFunc.getItem()
+            if ok and mq.TLO.Cursor.ID() ~= itemFunc.id then
+                utils.output("\arWrong item on cursor (expected %d, got %d). Autoinventorying.", itemFunc.id, mq.TLO.Cursor.ID() or 0)
+                mq.cmd("/autoinventory")
+                mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                ok = false
+            end
+            if ok and not placeCursorItemInGiveWindow(petSpawn) then
+                utils.output("\arFailed to open GiveWnd. Autoinventorying cursor item.")
+                mq.cmd("/autoinventory")
+                mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                ok = false
+            end
+            if ok then
+                utils.debugOutput("Placed in trade: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", itemFunc.id)
+                givenIds[itemFunc.id] = true
+                batchCount = batchCount + 1
             else
-                -- claude: look for possible helpers or refactor here
-                -- Verify item ID on cursor
-                if mq.TLO.Cursor.ID() ~= itemFunc.id then
-                    utils.output("\arWrong item on cursor (expected %d, got %d). Autoinventorying.", itemFunc.id, mq.TLO.Cursor.ID() or 0)
-                    mq.cmd("/autoinventory")
-                    mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
-                    allSuccess = false
-                else
-                    local cursorName = mq.TLO.Cursor.Name() or "?"
-                    if not placeCursorItemInGiveWindow(petSpawn) then
-                        utils.output("\arFailed to open GiveWnd. Autoinventorying cursor item.")
-                        mq.cmd("/autoinventory")
-                        mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
-                        allSuccess = false
-                    else
-                        utils.debugOutput("Placed in trade: %s (ID: %d)", cursorName, itemFunc.id)
-                        givenIds[itemFunc.id] = true
-                        batchCount = batchCount + 1
-                    end
-                end
+                allSuccess = false
             end
         end
 
         -- Click Give if we placed any items
         if batchCount > 0 and giveWnd.Open() then
             utils.debugOutput(" Clicking Give (%d items in batch)", batchCount)
-            if not clickGive() then
+            mq.cmd("/notify GiveWnd GVW_Give_Button leftmouseup")
+            mq.delay(5000, function() return not giveWnd.Open() end)
+            if giveWnd.Open() then
                 utils.output("\arGiveWnd did not close after clicking Give.")
                 allSuccess = false
             end
@@ -214,7 +275,7 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
 
     -- Place bag into free top slot
     mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", freeSlot)
-    mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+    mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
     if mq.TLO.Cursor.ID() then
         utils.output("\arFailed to place bag into pack%d.", freeSlot)
         return false
@@ -257,7 +318,7 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
                 end
                 utils.debugOutput(" Picking up %s (ID: %d) from pack%d slot %d", item.name or "?", item.id, freeSlot, subSlot)
                 mq.cmdf("/nomodkey /itemnotify in pack%d %d leftmouseup", freeSlot, subSlot)
-                mq.delay(3000, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
+                mq.delay(1500, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
                 if not mq.TLO.Cursor.ID() then
                     utils.output("\arFailed to pick up item from pack%d slot %d.", freeSlot, subSlot)
                     return false
@@ -302,11 +363,11 @@ function delivery.cleanupBag(entry, freeSlot)
     if not container or container == 0 then
         -- Not a container, just destroy it
         mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", freeSlot)
-        mq.delay(3000, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
+        mq.delay(1500, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
         if mq.TLO.Cursor.ID() then
             if mq.TLO.Cursor.ID() == bagId then
                 mq.cmd("/destroy")
-                mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+                mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
             else
                 utils.output("\arUnexpected cursor item during cleanup (expected bag ID %d, got %d).", bagId, mq.TLO.Cursor.ID())
             end
@@ -319,18 +380,18 @@ function delivery.cleanupBag(entry, freeSlot)
         local subItemId = mq.TLO.InvSlot("pack" .. freeSlot).Item.Item(s).ID()
         if subItemId then
             mq.cmdf("/nomodkey /itemnotify in pack%d %d leftmouseup", freeSlot, s)
-            mq.delay(3000, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
+            mq.delay(1500, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
             if not mq.TLO.Cursor.ID() then
                 utils.output("\arFailed to pick up sub-item from pack%d slot %d during cleanup.", freeSlot, s)
             else
                 if trashIds[mq.TLO.Cursor.ID()] then
                     utils.debugOutput("Destroying cleanup item: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", mq.TLO.Cursor.ID())
                     mq.cmd("/destroy")
-                    mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+                    mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
                 else
                     utils.output("\ayUnexpected item in bag (ID: %d) - autoinventorying.", mq.TLO.Cursor.ID())
                     mq.cmd("/autoinventory")
-                    mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+                    mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
                 end
             end
         end
@@ -338,7 +399,7 @@ function delivery.cleanupBag(entry, freeSlot)
 
     -- Destroy the bag itself last to free the top-level slot
     mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", freeSlot)
-    mq.delay(3000, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
+    mq.delay(1500, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
     if not mq.TLO.Cursor.ID() then
         utils.output("\arFailed to pick up bag from pack%d during cleanup.", freeSlot)
         return
@@ -347,7 +408,7 @@ function delivery.cleanupBag(entry, freeSlot)
     if mq.TLO.Cursor.ID() == bagId then
         utils.debugOutput("Destroying bag: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", bagId)
         mq.cmd("/destroy")
-        mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
     else
         utils.output("\arUnexpected cursor item when destroying bag (expected ID %d, got %d). Not destroying.", bagId, mq.TLO.Cursor.ID())
     end

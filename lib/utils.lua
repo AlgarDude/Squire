@@ -9,7 +9,6 @@ local utils = {}
 
 -- Polling
 
---claude: from a friend: "this looks like mq.delay(timeoutMs, function() return abortFunc() or conditionFunc() end) with extra steps". lets discuss.
 function utils.waitFor(conditionFunc, timeoutMs, checkIntervalMs, abortFunc)
     checkIntervalMs = checkIntervalMs or 100
     local elapsed = 0
@@ -27,7 +26,7 @@ function utils.waitFor(conditionFunc, timeoutMs, checkIntervalMs, abortFunc)
 end
 
 -- Output
--- claude: why is this variable declared here?
+
 utils.debugMode = false
 
 function utils.output(msg, ...)
@@ -42,22 +41,20 @@ function utils.debugOutput(msg, ...)
 end
 
 -- Settings
--- claude: why are these declared here? scope much? in fact... why are these declared at all? These may be more suitable as globals.
+
 local characterName = mq.TLO.Me.Name()
 local serverName = mq.TLO.EverQuest.Server():gsub("%s+", "")
-local className = mq.TLO.Me.Class.ShortName()
 
 function utils.getSettingsPath()
-    return mq.configDir .. "/Squire/" .. characterName .. "_" .. serverName .. "_" .. className .. ".lua"
+    return mq.configDir .. "/Squire/" .. characterName .. "_" .. serverName .. "_" .. mq.TLO.Me.Class.ShortName() .. ".lua"
 end
 
--- claude: I think i may want this to default to cursor.
 function utils.defaultSourceEntry()
     return {
         enabled = false,
         name = "",
         type = "spell",
-        method = "direct",
+        method = "cursor",
         items = {},
         trashItems = {},
     }
@@ -204,7 +201,7 @@ function utils.freeTopSlot()
         return "abort"
     end
 
-    utils.debugOutput("freeTopSlot: moving pack%d → pack%d slot %d", sourceSlot, destPack, destSubSlot)
+    utils.debugOutput("freeTopSlot: moving pack%d -> pack%d slot %d", sourceSlot, destPack, destSubSlot)
 
     -- Pick up the item from the source slot
     mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", sourceSlot)

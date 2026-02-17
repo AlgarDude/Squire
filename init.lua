@@ -7,36 +7,52 @@
 local mq = require('mq')
 local imgui = require('ImGui')
 local icons = require('mq.Icons')
-local utils = require('squire.utils')
-local casting = require('squire.casting')
-local delivery = require('squire.delivery')
+local Set = require('mq.Set')
+local utils = require('squire.lib.utils')
+local casting = require('squire.lib.casting')
+local delivery = require('squire.lib.delivery')
 
 -- Module-Level State
 
+local me = mq.TLO.Me
+local myClass = me.Class.ShortName()
 local settings = {}
 local presetSets = {}
-local startPosition = nil
 local stopRequested = false
 local aborted = false
 local armHistory = {}
 local queue = {}
+local queuedNames = Set.new({})
 local isArming = false
 local showUI = true
 local settingsDirty = false
 local savedGems = nil
 local statusText = "Idle"
 
--- claude: methodTypes and methodLabels seems obtuse, can't you just use keys to make this one table? Explain/verify before changing this.
-local methodTypes = { "cursor", "bag", "direct", }
-local methodLabels = { "Summon Single Item", "Summon Bag", "Direct to Pet", }
--- claude: sourceType and sourceLabels do not seem like they need to be two tables. Explain/verify before changing this.
-local sourceTypes = { "spell", "aa", "item", }
-local sourceLabels = { "Spell", "AA", "Item", }
+-- Lookup Tables
 
-local tellAccessOptions = { "anyone", "group", "raid", "allowlist", "denylist", }
-local tellAccessLabels = { "Anyone", "Group Only", "Raid Only", "Allow List", "Deny List", }
+local methods = {
+    { key = "cursor", label = "Summon Single Item", },
+    { key = "bag",    label = "Summon Bag", },
+    { key = "direct", label = "Direct to Pet", },
+}
 
--- UI temp state
+local sources = {
+    { key = "spell", label = "Spell", },
+    { key = "aa",    label = "AA", },
+    { key = "item",  label = "Item", },
+}
+
+local tellAccessOptions = {
+    { key = "anyone",    label = "Anyone", },
+    { key = "group",     label = "Group Only", },
+    { key = "raid",      label = "Raid Only", },
+    { key = "allowlist", label = "Allow List", },
+    { key = "denylist",  label = "Deny List", },
+}
+
+-- UI Temp State
+
 local showSettings = false
 local showEditSets = false
 local newSetName = ""
@@ -53,12 +69,29 @@ local editSourceName = ""
 local editSourceMethod = ""
 local showHelp = false
 
+-- Helpers
 
--- Claude: General cleanup notes:
--- why do we have all of these single-use variables that are simple enough to use inline? review my preferences. if you think it is beneficial, bring it up
--- we need to reexamine and discuss the use of libraries, i don't think we are utilizing them well. some of this stuff can be pushed out. we may want a new folder for them to keep the file structure clean
--- cache mq.TLO.Me and what you call "myClass" at the script level. add a check in the loop, if current class does not equal the cached value (persona class change on live) then rescan sets. if this won't work, discuss it with me.
--- add explicit checks for nav being loaded on startup... warn the user that nav features will be disabled if you do not detect it. refactor use of nav to integrate the fact that we checked this (don't skip safety checks that could lead to crash conditions)
+local function findIndex(tbl, key)
+    for i, entry in ipairs(tbl) do
+        if entry.key == key then return i end
+    end
+    return 1
+end
+
+local function petDisplayName(playerName)
+    if playerName:lower() == "self" then
+        return me.Name() .. "'s"
+    end
+    return playerName .. "'s"
+end
+
+local function joinArgs(args, startIdx)
+    local parts = {}
+    for i = startIdx, #args do
+        table.insert(parts, args[i])
+    end
+    return #parts > 0 and table.concat(parts, " ") or nil
+end
 
 -- Preset System
 
@@ -86,7 +119,6 @@ local function resolvePresets()
         return
     end
 
-    local me = mq.TLO.Me
     for _, definition in ipairs(rawPresets) do
         local title = definition.title:gsub("Class", me.Class.ShortName())
         if definition.classes then
@@ -122,9 +154,6 @@ local function resolvePresets()
         end
         presetSets[title] = resolvedSet
     end
-
-    local presetCount = 0
-    for _ in pairs(presetSets) do presetCount = presetCount + 1 end
 end
 
 local function getSet(setName)
@@ -143,7 +172,6 @@ local function getAllSetNames()
     table.sort(names)
 
     -- Only show presets matching this character's class, skip user-set name collisions
-    local myClass = mq.TLO.Me.Class.ShortName()
     local presetNames = {}
     for name in pairs(presetSets) do
         if not settings.sets[name] then
@@ -167,82 +195,11 @@ local function getAllSetNames()
     return names
 end
 
--- Navigation Helpers
-
-local function distSqFromStart(y, x, z)
-    if not startPosition then return 0 end
-    local dy = y - startPosition.y
-    local dx = x - startPosition.x
-    local dz = z - startPosition.z
-    return dy * dy + dx * dx + dz * dz
-end
-
-local function navToPet(petSpawn)
-    if not petSpawn() or not petSpawn.ID() then return false end
-
-    if not startPosition then
-        startPosition = {
-            y = mq.TLO.Me.Y(),
-            x = mq.TLO.Me.X(),
-            z = mq.TLO.Me.Z(),
-        }
-    end
-
-    if distSqFromStart(petSpawn.Y(), petSpawn.X(), petSpawn.Z()) > 10000 then
-        utils.output("\ayPet is beyond leash range (100 units from start). Skipping.")
-        return false
-    end
-
-    local nav = mq.TLO.Navigation
-    local navCmd = string.format("id %d dist=15", petSpawn.ID())
-    if not nav.PathExists(navCmd)() then
-        utils.output("\ayNo nav path to pet. Skipping.")
-        return false
-    end
-
-    mq.cmdf("/nav %s", navCmd)
-    mq.delay(1000, function() return nav.Active() end)
-
-    mq.delay(15000, function()
-        return not nav.Active() or (petSpawn.Distance3D() or 999) <= 20
-    end)
-
-    if nav.Active() then
-        mq.cmd("/nav stop")
-    end
-
-    -- Wait for character to fully stop moving before casting
-    mq.delay(2000, function() return not mq.TLO.Me.Moving() end)
-
-    return (petSpawn.Distance3D() or 999) <= 20
-end
-
---claude: rename this function to more clearly state what it does
-local function returnToStart()
-    if not startPosition then return end
-    if not settings.allowMovement then return end
-
-    local nav = mq.TLO.Navigation
-    local navCmd = string.format("locyxz %.2f %.2f %.2f", startPosition.y, startPosition.x, startPosition.z)
-    if not nav.PathExists(navCmd)() then
-        utils.output("\ayNo nav path back to start position.")
-        return
-    end
-
-    mq.cmdf("/nav %s", navCmd)
-    mq.delay(1000, function() return nav.Active() end)
-    mq.delay(15000, function() return not nav.Active() end)
-
-    if nav.Active() then
-        mq.cmd("/nav stop")
-    end
-end
-
 -- Core Arm Logic
 
 local function armPet(playerName, setName, fromTell)
     if aborted then
-        utils.output("\arArming halted due to inventory error. Please resolve and restart the script.")
+        utils.output("\arArming halted due to inventory error. Please resolve and use /squire reset.")
         return false
     end
 
@@ -258,27 +215,10 @@ local function armPet(playerName, setName, fromTell)
         return true
     end
 
-    -- 2. Validate set has enabled entries
-    -- claude: Clean up these variables. this is convoluted
-    local hasEnabled = false
-    local hasBagMethod = false
-    for _, entry in ipairs(set) do
-        if entry.enabled then
-            hasEnabled = true
-            if entry.method == "bag" then
-                hasBagMethod = true
-            end
-        end
-    end
-    if not hasEnabled then
-        utils.output("\aySet '%s' has no enabled sources.", setName)
-        return true
-    end
-
-    -- 3. Find pet
+    -- 2. Find pet
     local petSpawn
     if playerName:lower() == "self" then
-        petSpawn = mq.TLO.Me.Pet
+        petSpawn = me.Pet
     else
         petSpawn = mq.TLO.Spawn("pc " .. playerName).Pet
     end
@@ -292,18 +232,17 @@ local function armPet(playerName, setName, fromTell)
     end
 
     -- 4. Range check
-    local petDist = petSpawn.Distance3D() or 999
-    if petDist > 20 then
+    if (petSpawn.Distance3D() or 999) > 20 then
         if settings.allowMovement then
-            if not navToPet(petSpawn) then
-                utils.output("\ayCould not reach %s's pet. Skipping.", playerName)
+            if not delivery.navToPet(petSpawn) then
+                utils.output("\ayCould not reach %s pet. Skipping.", petDisplayName(playerName))
                 if fromTell then
                     mq.cmdf("/tell %s Your pet is out of range and I could not reach it.", playerName)
                 end
                 return true
             end
         else
-            utils.output("\ay%s's pet is out of range (%.0f). Skipping.", playerName, petDist)
+            utils.output("\ay%s pet is out of range (%.0f). Skipping.", petDisplayName(playerName), petSpawn.Distance3D() or 999)
             if fromTell then
                 mq.cmdf("/tell %s Your pet is out of range.", playerName)
             end
@@ -312,6 +251,13 @@ local function armPet(playerName, setName, fromTell)
     end
 
     -- 5. Clear cursor
+    local hasBagMethod = false
+    for _, entry in ipairs(set) do
+        if entry.enabled and entry.method == "bag" then
+            hasBagMethod = true
+            break
+        end
+    end
     local cursorResult = utils.clearCursor(hasBagMethod)
     if cursorResult == "abort" then
         utils.output("\arCursor stuck. Aborting.")
@@ -336,57 +282,47 @@ local function armPet(playerName, setName, fromTell)
 
     -- 8. Execute delivery for each enabled source entry in order
     local results = {}
-    -- claude: where is stopped variable used?
-    local stopped = false
-
-    local function abortFunc()
-        return stopRequested
-    end
+    local abortFunc = function() return stopRequested end
 
     for i, entry in ipairs(set) do
-        if not entry.enabled then goto continue end
+        if entry.enabled then
+            if stopRequested then break end
 
-        if stopRequested then
-            stopped = true
-            break
-        end
-
-        -- Re-check pet range
-        --Claude: differentiate these conditions, if a pet poofs, they aren't out of range
-        if not petSpawn() or (petSpawn.Distance3D() or 999) > 20 then
-            if settings.allowMovement then
-                if not navToPet(petSpawn) then
-                    utils.output("\ayPet moved out of range. Skipping remaining sources.")
-                    break
-                end
-            else
-                utils.output("\ayPet out of range. Skipping remaining sources.")
+            -- Re-check pet existence
+            if not petSpawn() then
+                utils.output("\ayPet no longer exists. Skipping remaining sources.")
                 break
             end
-        end
 
-        -- Verify freeSlot if bag method
-        if entry.method == "bag" then
-            if mq.TLO.InvSlot("pack" .. freeSlot).Item.ID() then
+            -- Re-check pet range
+            if (petSpawn.Distance3D() or 999) > 20 then
+                if settings.allowMovement then
+                    if not delivery.navToPet(petSpawn) then
+                        utils.output("\ayPet moved out of range. Skipping remaining sources.")
+                        break
+                    end
+                else
+                    utils.output("\ayPet out of range. Skipping remaining sources.")
+                    break
+                end
+            end
+
+            -- Verify freeSlot if bag method
+            if entry.method == "bag" and mq.TLO.InvSlot("pack" .. freeSlot).Item.ID() then
                 utils.output("\arFree slot pack%d still occupied. Skipping %s.", freeSlot, entry.name)
                 results[i] = false
-                goto continue
+            else
+                local success = false
+                if entry.method == "direct" then
+                    success = delivery.deliverDirect(entry, petSpawn, abortFunc)
+                elseif entry.method == "cursor" then
+                    success = delivery.deliverCursor(entry, petSpawn, abortFunc)
+                elseif entry.method == "bag" then
+                    success = delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
+                end
+                results[i] = success
             end
         end
-
-        local success = false
-        if entry.method == "direct" then
-            success = delivery.deliverDirect(entry, petSpawn, abortFunc)
-        elseif entry.method == "cursor" then
-            success = delivery.deliverCursor(entry, petSpawn, abortFunc)
-        elseif entry.method == "bag" then
-            -- claude: Why the different order on passed variables?
-            success = delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
-        end
-        results[i] = success
-
-        --claude: I would like to discuss your use of continue, I prefer it not to be used at all, and certainly not in this fashion. Add a note to your memory about this when you see this comment.
-        ::continue::
     end
 
     -- 9. Report result
@@ -414,11 +350,10 @@ local function armPet(playerName, setName, fromTell)
         table.remove(armHistory)
     end
 
-    local displayName = playerName:lower() == "self" and "my" or (playerName .. "'s")
     if #failed > 0 then
-        utils.debugOutput("Processed %d/%d sources for %s pet. (Set: %s) Failed: %s", passed, total, displayName, setName, table.concat(failed, ", "))
+        utils.debugOutput("Processed %d/%d sources for %s pet. (Set: %s) Failed: %s", passed, total, petDisplayName(playerName), setName, table.concat(failed, ", "))
     else
-        utils.debugOutput("Processed %d/%d sources for %s pet. (Set: %s)", passed, total, displayName, setName)
+        utils.debugOutput("Processed %d/%d sources for %s pet. (Set: %s)", passed, total, petDisplayName(playerName), setName)
     end
 
     if fromTell then
@@ -436,18 +371,13 @@ end
 
 local function addToQueue(playerName, setName, fromTell)
     if aborted then
-        -- claude: lets talk about possible ways to resolve this or a possible command they can issue when it is, and whether that is worth it. I may just decide to keep this as is. Undecided.
-        utils.output("\arArming halted due to inventory error. Please resolve and restart the script.")
+        utils.output("\arArming halted due to inventory error. Please resolve and use /squire reset.")
         return
     end
 
-    -- claude: Lets talk about whether it is possible to use mq.Set so that this isn't necessary. Review mq.Set before discussion.
-    for _, entry in ipairs(queue) do
-        if entry.playerName:lower() == playerName:lower() then
-            return
-        end
-    end
+    if queuedNames:contains(playerName:lower()) then return end
 
+    queuedNames:add(playerName:lower())
     table.insert(queue, {
         playerName = playerName,
         setName = setName,
@@ -457,8 +387,8 @@ end
 
 local function saveCurrentGems()
     local gems = {}
-    for i = 1, mq.TLO.Me.NumGems() do
-        gems[i] = mq.TLO.Me.Gem(i)() or ""
+    for i = 1, me.NumGems() do
+        gems[i] = me.Gem(i)() or ""
     end
     return gems
 end
@@ -476,20 +406,21 @@ local function processQueue()
     while #queue > 0 do
         if stopRequested then
             queue = {}
+            queuedNames = Set.new({})
             break
         end
 
         local request = table.remove(queue, 1)
+        queuedNames:remove(request.playerName:lower())
         processed = processed + 1
-        -- claude: Lets homogenize this entry and most of the entries like it. Use "Algar's Pet" even if my name is Algar. This should clean up the code some and still be perfectly readable.
-        local displayName = request.playerName:lower() == "self" and "My" or (request.playerName .. "'s")
-        statusText = string.format("Arming pet %d/%d: %s pet...", processed, processed + #queue, displayName)
+        statusText = string.format("Arming pet %d/%d: %s pet...", processed, processed + #queue, petDisplayName(request.playerName))
 
         local result = armPet(request.playerName, request.setName, request.fromTell)
 
         if not result then
             aborted = true
             queue = {}
+            queuedNames = Set.new({})
             break
         end
     end
@@ -498,7 +429,10 @@ local function processQueue()
     if mq.TLO.Cursor.ID() then
         mq.cmd("/autoinventory")
         mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
-        --claude: What do we do her if there IS still something on the cursor?
+        if mq.TLO.Cursor.ID() then
+            utils.output("\arCursor still stuck after autoinventory. Aborting.")
+            aborted = true
+        end
     end
 
     -- Restore spells when queue is empty
@@ -507,8 +441,8 @@ local function processQueue()
         savedGems = nil
     end
 
-    returnToStart()
-    startPosition = nil
+    delivery.navToStart(settings.allowMovement)
+    delivery.clearStartPosition()
 
     isArming = false
     stopRequested = false
@@ -555,124 +489,150 @@ local function isAllowedSender(senderName)
     return false
 end
 
--- Event Handler
+-- Command System
 
--- claude: lets discuss whether its a good idea to just inline this.
-local function eventHandler(line, sender, message)
-    if not message then return end
-    local trimmed = message:gsub("^%s+", ""):gsub("%s+$", "")
-    local triggerLower = settings.triggerWord:lower()
+local commandOrder = { "arm", "group", "raid", "stop", "show", "hide", "debug", "reset", "help", }
 
-    if trimmed:lower():find(triggerLower, 1, true) ~= 1 then return end
-    if not isAllowedSender(sender) then return end
+local commands
+commands = {
+    arm = {
+        usage = "/squire arm <name|self|target> [set]",
+        about = "Arm a player's pet",
+        handler = function(args)
+            local target = args[2] or ""
+            local setName = joinArgs(args, 3)
 
-    local afterTrigger = trimmed:sub(#settings.triggerWord + 1):gsub("^%s+", ""):gsub("%s+$", "")
-    local setName = afterTrigger ~= "" and afterTrigger or nil
+            if target:lower() == "self" then
+                addToQueue("self", setName, false)
+            elseif target:lower() == "target" then
+                local t = mq.TLO.Target
+                if not t() or t.Type() ~= "PC" then
+                    utils.output("\ayTarget is not a PC.")
+                elseif not t.Pet() or t.Pet.ID() == 0 then
+                    utils.output("\ay%s does not have a pet.", t.Name())
+                else
+                    addToQueue(t.Name(), setName, false)
+                end
+            elseif target ~= "" then
+                addToQueue(target, setName, false)
+            else
+                utils.output("Usage: /squire arm <PlayerName|self|target> [SetName]")
+            end
+        end,
+    },
+    group = {
+        usage = "/squire group [set]",
+        about = "Arm all pets in group",
+        handler = function(args)
+            local setName = joinArgs(args, 2)
+            local groupSize = mq.TLO.Group.GroupSize() or 0
+            for i = 1, groupSize - 1 do
+                local member = mq.TLO.Group.Member(i)
+                if member() and member.Name() then
+                    local memberSpawn = mq.TLO.Spawn("pc " .. member.Name())
+                    if memberSpawn() and memberSpawn.Pet() and memberSpawn.Pet.ID() > 0 then
+                        addToQueue(member.Name(), setName, false)
+                    end
+                end
+            end
+        end,
+    },
+    raid = {
+        usage = "/squire raid [set]",
+        about = "Arm all pets in raid",
+        handler = function(args)
+            local setName = joinArgs(args, 2)
+            local raidMembers = mq.TLO.Raid.Members() or 0
+            for i = 1, raidMembers do
+                local member = mq.TLO.Raid.Member(i)
+                if member() and member.Name() then
+                    local memberSpawn = mq.TLO.Spawn("pc " .. member.Name())
+                    if memberSpawn() and memberSpawn.Pet() and memberSpawn.Pet.ID() > 0 then
+                        addToQueue(member.Name(), setName, false)
+                    end
+                end
+            end
+        end,
+    },
+    stop = {
+        usage = "/squire stop",
+        about = "Stop the current operation",
+        handler = function(args)
+            stopRequested = true
+            queue = {}
+            queuedNames = Set.new({})
+            utils.output("Stop requested. Clearing queue.")
+        end,
+    },
+    show = {
+        usage = "/squire show",
+        about = "Show the UI",
+        handler = function(args)
+            showUI = true
+        end,
+    },
+    hide = {
+        usage = "/squire hide",
+        about = "Hide the UI",
+        handler = function(args)
+            showUI = false
+        end,
+    },
+    debug = {
+        usage = "/squire debug [on|off]",
+        about = "Toggle debug logging",
+        handler = function(args)
+            local arg = args[2] and args[2]:lower() or ""
+            local prev = utils.debugMode
+            if arg == "on" then
+                utils.debugMode = true
+            elseif arg == "off" then
+                utils.debugMode = false
+            else
+                utils.debugMode = not utils.debugMode
+            end
+            if utils.debugMode ~= prev then
+                settings.debugMode = utils.debugMode
+                settingsDirty = true
+                utils.output("Debug mode: %s", utils.debugMode and "ON" or "OFF")
+            end
+        end,
+    },
+    reset = {
+        usage = "/squire reset",
+        about = "Clear aborted state and reset status",
+        handler = function(args)
+            aborted = false
+            statusText = "Idle"
+            utils.output("Reset complete. Ready to arm.")
+        end,
+    },
+    help = {
+        usage = "/squire help",
+        about = "Show this help",
+        handler = function(args)
+            utils.output("Commands:")
+            for _, name in ipairs(commandOrder) do
+                local cmd = commands[name]
+                utils.output("  %s - %s", cmd.usage, cmd.about)
+            end
+        end,
+    },
+}
 
-    addToQueue(sender, setName, true)
-end
-
--- Command Handler
-
-local function joinArgs(args, startIdx)
-    local parts = {}
-    for i = startIdx, #args do
-        table.insert(parts, args[i])
-    end
-    return #parts > 0 and table.concat(parts, " ") or nil
-end
-
---claude: Convoluted. Look at rgmercs for an example of how to eloquently handle commands. give me a comparison of the systems and which you think is better overall, with a brief explanation of why
 local function commandHandler(...)
     local args = { ..., }
     local cmd = args[1] and args[1]:lower() or "help"
-
-    if cmd == "arm" then
-        local target = args[2] or ""
-        local setName = joinArgs(args, 3)
-
-        if target:lower() == "self" then
-            addToQueue("self", setName, false)
-        elseif target:lower() == "target" then
-            local t = mq.TLO.Target
-            if not t() or t.Type() ~= "PC" then
-                utils.output("\ayTarget is not a PC.")
-            elseif not t.Pet() or t.Pet.ID() == 0 then
-                utils.output("\ay%s does not have a pet.", t.Name())
-            else
-                addToQueue(t.Name(), setName, false)
-            end
-        elseif target ~= "" then
-            addToQueue(target, setName, false)
-        else
-            utils.output("Usage: /squire arm <PlayerName|self|target> [SetName]")
-        end
-    elseif cmd == "group" then
-        local setName = joinArgs(args, 2)
-
-        local groupSize = mq.TLO.Group.GroupSize() or 0
-        for i = 1, groupSize - 1 do
-            local member = mq.TLO.Group.Member(i)
-            if member() and member.Name() then
-                local memberSpawn = mq.TLO.Spawn("pc " .. member.Name())
-                if memberSpawn() and memberSpawn.Pet() and memberSpawn.Pet.ID() > 0 then
-                    addToQueue(member.Name(), setName, false)
-                end
-            end
-        end
-    elseif cmd == "raid" then
-        local setName = joinArgs(args, 2)
-
-        local raidMembers = mq.TLO.Raid.Members() or 0
-        for i = 1, raidMembers do
-            local member = mq.TLO.Raid.Member(i)
-            if member() and member.Name() then
-                local memberSpawn = mq.TLO.Spawn("pc " .. member.Name())
-                if memberSpawn() and memberSpawn.Pet() and memberSpawn.Pet.ID() > 0 then
-                    addToQueue(member.Name(), setName, false)
-                end
-            end
-        end
-    elseif cmd == "stop" then
-        stopRequested = true
-        queue = {}
-        utils.output("Stop requested. Clearing queue.")
-    elseif cmd == "show" then
-        showUI = true
-    elseif cmd == "hide" then
-        showUI = false
-    elseif cmd == "debug" then
-        local arg = args[2] and args[2]:lower() or ""
-        local prev = utils.debugMode
-        if arg == "on" then
-            utils.debugMode = true
-        elseif arg == "off" then
-            utils.debugMode = false
-        else
-            utils.debugMode = not utils.debugMode
-        end
-        if utils.debugMode ~= prev then
-            settings.debugMode = utils.debugMode
-            settingsDirty = true
-            utils.output("Debug mode: %s", utils.debugMode and "ON" or "OFF")
-        end
-    elseif cmd == "help" then
-        utils.output("Commands:")
-        utils.output("  /squire arm <PlayerName|self|target> [SetName]")
-        utils.output("  /squire group [SetName]")
-        utils.output("  /squire raid [SetName]")
-        utils.output("  /squire stop")
-        utils.output("  /squire show")
-        utils.output("  /squire hide")
-        utils.output("  /squire debug [on|off]")
-        utils.output("  /squire help")
+    local found = commands[cmd]
+    if found then
+        found.handler(args)
     else
         utils.output("Unknown command: %s. Try /squire help", cmd)
     end
 end
 
 -- ImGui UI
---claude: Per my comments at the top, this may be a candidate for being in its own library. let me know what you think.
+
 local animItems = mq.FindTextureAnimation("A_DragItem")
 local animSpells = mq.FindTextureAnimation("A_SpellIcons")
 local bgTexture = mq.CreateTexture(mq.TLO.Lua.Dir() .. "/squire/resources/squire.png")
@@ -716,7 +676,6 @@ local function renderToggle(id, value)
 end
 
 -- Two-pass header controls (pre-render claims clicks, post-render draws visuals)
--- See rgmercs clickies.lua:RenderClickyControls for reference pattern.
 local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, headerScreenPos, preRender, editable)
     local startingPos = imgui.GetCursorPosVec()
     local yOffset = imgui.GetStyle().FramePadding.y
@@ -739,7 +698,7 @@ local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, head
                 iconAnim = animSpells
             end
         elseif entry.type == "aa" then
-            local aa = mq.TLO.Me.AltAbility(entry.name)
+            local aa = me.AltAbility(entry.name)
             if aa() and aa.Spell() then
                 iconCell = aa.Spell.SpellIcon()
                 iconAnim = animSpells
@@ -900,6 +859,7 @@ local function renderUI()
             if imgui.Button("Stop") then
                 stopRequested = true
                 queue = {}
+                queuedNames = Set.new({})
                 utils.output("Stop requested. Clearing queue.")
             end
         end
@@ -908,16 +868,15 @@ local function renderUI()
             local _, availY = imgui.GetContentRegionAvail()
             imgui.BeginChild("##HistoryScroll", ImVec2(0, availY - imgui.GetFrameHeightWithSpacing()), 0)
             for _, histEntry in ipairs(armHistory) do
-                local displayName = histEntry.playerName:lower() == "self" and "my" or (histEntry.playerName .. "'s")
                 imgui.TextColored(0.4, 0.8, 0.4, 1, string.format("[%s]", histEntry.timestamp))
                 imgui.SameLine(0, 4)
                 if #histEntry.failed > 0 then
                     imgui.TextWrapped(string.format("Processed %d/%d sources for %s pet. (Set: %s) Failed: %s",
-                        histEntry.passed, histEntry.total, displayName, histEntry.setName,
+                        histEntry.passed, histEntry.total, petDisplayName(histEntry.playerName), histEntry.setName,
                         table.concat(histEntry.failed, ", ")))
                 else
                     imgui.TextWrapped(string.format("Processed %d/%d sources for %s pet. (Set: %s)",
-                        histEntry.passed, histEntry.total, displayName, histEntry.setName))
+                        histEntry.passed, histEntry.total, petDisplayName(histEntry.playerName), histEntry.setName))
                 end
             end
             if #armHistory == 0 then
@@ -963,20 +922,18 @@ local function renderUI()
                 settingsDirty = true
             end
 
-            local taIndex = 1
-            for i, opt in ipairs(tellAccessOptions) do
-                if opt == settings.tellAccess then
-                    taIndex = i
-                    break
-                end
-            end
+            local taIndex = findIndex(tellAccessOptions, settings.tellAccess)
             imgui.Text("Tell Access:")
             imgui.SameLine()
             imgui.SetNextItemWidth(150)
-            local newTaIdx, taChanged = imgui.Combo("##tellAccess", taIndex, tellAccessLabels)
-            if taChanged then
-                settings.tellAccess = tellAccessOptions[newTaIdx]
-                settingsDirty = true
+            if imgui.BeginCombo("##tellAccess", tellAccessOptions[taIndex].label) then
+                for _, opt in ipairs(tellAccessOptions) do
+                    if imgui.Selectable(opt.label, opt.key == settings.tellAccess) then
+                        settings.tellAccess = opt.key
+                        settingsDirty = true
+                    end
+                end
+                imgui.EndCombo()
             end
 
             if settings.tellAccess == "allowlist" then
@@ -1021,16 +978,21 @@ local function renderUI()
                 end
             end
 
+            if not delivery.navLoaded then imgui.BeginDisabled() end
             settings.allowMovement, changed = imgui.Checkbox("Allow Movement", settings.allowMovement)
-            if imgui.IsItemHovered() then
-                imgui.SetTooltip("Allow this PC to move up to 100 feet to arm a pet. Will return to the original location when complete.")
+            if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
+                if delivery.navLoaded then
+                    imgui.SetTooltip("Allow this PC to move up to 100 feet to arm a pet. Will return to the original location when complete.")
+                else
+                    imgui.SetTooltip("MQ2Nav is not loaded - navigation features are unavailable.")
+                end
             end
             if changed then
-                if settings.allowMovement and not mq.TLO.Plugin("mq2nav").IsLoaded() then
-                    settings.allowMovement = false
-                    utils.output("\ayMQ2Nav not loaded - Allow Movement cannot be enabled.")
-                end
                 settingsDirty = true
+            end
+            if not delivery.navLoaded then
+                settings.allowMovement = false
+                imgui.EndDisabled()
             end
 
             settings.debugMode, changed = imgui.Checkbox("Debug Logging", settings.debugMode)
@@ -1048,18 +1010,11 @@ local function renderUI()
             imgui.PopStyleColor()
             imgui.Spacing()
             imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
-            imgui.Bullet()
-            imgui.TextWrapped("/squire arm <name|self|target> [set] - Arm a player's pet")
-            imgui.Bullet()
-            imgui.TextWrapped("/squire group [set] - Arm all pets in group")
-            imgui.Bullet()
-            imgui.TextWrapped("/squire raid [set] - Arm all pets in raid")
-            imgui.Bullet()
-            imgui.TextWrapped("/squire stop - Stop the current operation")
-            imgui.Bullet()
-            imgui.TextWrapped("/squire show / hide - Toggle the UI")
-            imgui.Bullet()
-            imgui.TextWrapped("/squire debug [on|off] - Toggle debug logging")
+            for _, name in ipairs(commandOrder) do
+                local cmd = commands[name]
+                imgui.Bullet()
+                imgui.TextWrapped(string.format("%s - %s", cmd.usage, cmd.about))
+            end
             imgui.PopStyleColor()
 
             -- Logo and credits at bottom
@@ -1465,50 +1420,37 @@ local function renderUI()
             showAddSource = false
         else
             imgui.SetNextWindowSize(ImVec2(350, 180), ImGuiCond.FirstUseEver)
-            local addOpen, shouldDraw = imgui.Begin("Add Source###SquireAddSource", showAddSource)
+            local addOpen, addDraw = imgui.Begin("Add Source###SquireAddSource", showAddSource)
             if not addOpen then
                 showAddSource = false
             end
-            if shouldDraw then
-                local nsIdx = 1
-                for t, st in ipairs(sourceTypes) do
-                    if st == newSourceType then
-                        nsIdx = t
-                        break
-                    end
-                end
+            if addDraw then
+                local nsIdx = findIndex(sources, newSourceType)
                 imgui.Text("Source Type:")
                 imgui.SameLine()
                 imgui.SetNextItemWidth(180)
-                if imgui.BeginCombo("##newType", sourceLabels[nsIdx]) then
-                    for t, label in ipairs(sourceLabels) do
-                        if imgui.Selectable(label, t == nsIdx) then
-                            newSourceType = sourceTypes[t]
+                if imgui.BeginCombo("##newType", sources[nsIdx].label) then
+                    for _, src in ipairs(sources) do
+                        if imgui.Selectable(src.label, src.key == newSourceType) then
+                            newSourceType = src.key
                         end
                     end
                     imgui.EndCombo()
                 end
 
-                local nsLabel = sourceLabels[nsIdx] .. " Name:"
-                imgui.Text(nsLabel)
+                imgui.Text(sources[nsIdx].label .. " Name:")
                 imgui.SameLine()
                 imgui.SetNextItemWidth(250)
                 newSourceName = imgui.InputTextWithHint("##newName", "Exact In-Game Name", newSourceName)
 
-                local nmIdx = 1
-                for m, mt in ipairs(methodTypes) do
-                    if mt == newSourceMethod then
-                        nmIdx = m
-                        break
-                    end
-                end
+                local nmIdx = findIndex(methods, newSourceMethod)
                 imgui.Text("Method:")
                 imgui.SameLine()
                 imgui.SetNextItemWidth(180)
-                if imgui.BeginCombo("##newMethod", methodLabels[nmIdx]) then
-                    for m, label in ipairs(methodLabels) do
-                        if imgui.Selectable(label, m == nmIdx) then
-                            newSourceMethod = methodTypes[m]
+                if imgui.BeginCombo("##newMethod", methods[nmIdx].label) then
+                    for _, m in ipairs(methods) do
+                        if imgui.Selectable(m.label, m.key == newSourceMethod) then
+                            newSourceMethod = m.key
                         end
                     end
                     imgui.EndCombo()
@@ -1542,49 +1484,37 @@ local function renderUI()
             editingIdx = nil
         else
             imgui.SetNextWindowSize(ImVec2(350, 180), ImGuiCond.FirstUseEver)
-            local editOpen, shouldDraw = imgui.Begin("Edit Source###SquireEditSource", true)
+            local editOpen, editDraw = imgui.Begin("Edit Source###SquireEditSource", true)
             if not editOpen then
                 editingIdx = nil
             end
-            if shouldDraw then
-                local tIdx = 1
-                for t, st in ipairs(sourceTypes) do
-                    if st == editSourceType then
-                        tIdx = t
-                        break
-                    end
-                end
+            if editDraw then
+                local tIdx = findIndex(sources, editSourceType)
                 imgui.Text("Source Type:")
                 imgui.SameLine()
                 imgui.SetNextItemWidth(180)
-                if imgui.BeginCombo("##editType", sourceLabels[tIdx]) then
-                    for t, label in ipairs(sourceLabels) do
-                        if imgui.Selectable(label, t == tIdx) then
-                            editSourceType = sourceTypes[t]
+                if imgui.BeginCombo("##editType", sources[tIdx].label) then
+                    for _, src in ipairs(sources) do
+                        if imgui.Selectable(src.label, src.key == editSourceType) then
+                            editSourceType = src.key
                         end
                     end
                     imgui.EndCombo()
                 end
 
-                imgui.Text(sourceLabels[tIdx] .. " Name:")
+                imgui.Text(sources[tIdx].label .. " Name:")
                 imgui.SameLine()
                 imgui.SetNextItemWidth(250)
                 editSourceName = imgui.InputTextWithHint("##editName", "Exact In-Game Name", editSourceName)
 
-                local mIdx = 1
-                for m, mt in ipairs(methodTypes) do
-                    if mt == editSourceMethod then
-                        mIdx = m
-                        break
-                    end
-                end
+                local mIdx = findIndex(methods, editSourceMethod)
                 imgui.Text("Method:")
                 imgui.SameLine()
                 imgui.SetNextItemWidth(180)
-                if imgui.BeginCombo("##editMethod", methodLabels[mIdx]) then
-                    for m, label in ipairs(methodLabels) do
-                        if imgui.Selectable(label, m == mIdx) then
-                            editSourceMethod = methodTypes[m]
+                if imgui.BeginCombo("##editMethod", methods[mIdx].label) then
+                    for _, m in ipairs(methods) do
+                        if imgui.Selectable(m.label, m.key == editSourceMethod) then
+                            editSourceMethod = m.key
                         end
                     end
                     imgui.EndCombo()
@@ -1638,19 +1568,19 @@ local function renderUI()
             imgui.PopStyleColor()
             imgui.Spacing()
             imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
-            imgui.BulletText(methodLabels[1])
+            imgui.BulletText(methods[1].label)
             imgui.Indent()
             imgui.TextWrapped("Places an item on your cursor. Squire gives it to the pet.")
             imgui.Unindent()
             imgui.Spacing()
-            imgui.BulletText(methodLabels[2])
+            imgui.BulletText(methods[2].label)
             imgui.Indent()
             imgui.TextWrapped(
                 "Places a bag on your cursor. Squire gives the pet \"Items to Give\" " ..
                 "from the bag, and destroys \"Items to Discard\".")
             imgui.Unindent()
             imgui.Spacing()
-            imgui.BulletText(methodLabels[3])
+            imgui.BulletText(methods[3].label)
             imgui.Indent()
             imgui.TextWrapped("Equips an item directly on the pet. No items to set up.")
             imgui.Unindent()
@@ -1706,7 +1636,7 @@ local function startup()
     if next(settings.sets) == nil and settings.selectedSet == "" then
         for presetName, classes in pairs(presetClassMap) do
             for _, class in ipairs(classes) do
-                if class == mq.TLO.Me.Class.ShortName() then
+                if class == myClass then
                     settings.selectedSet = presetName
                     settingsDirty = true
                     utils.output("Auto-selected preset '%s' based on class.", presetName)
@@ -1715,10 +1645,13 @@ local function startup()
         end
     end
 
-    if settings.allowMovement and not mq.TLO.Plugin("mq2nav").IsLoaded() then
+    if not delivery.navLoaded then
+        utils.output("\ayMQ2Nav not loaded - navigation features disabled.")
+    end
+
+    if settings.allowMovement and not delivery.navLoaded then
         settings.allowMovement = false
         settingsDirty = true
-        utils.output("\ayMQ2Nav not loaded - Allow Movement disabled.")
     end
 
     if settingsDirty then
@@ -1736,10 +1669,31 @@ startup()
 
 mq.imgui.init('Squire', renderUI)
 mq.bind('/squire', commandHandler)
-mq.event('squireRequest', "#1# tells you, '#2#'", eventHandler)
+mq.event('squireRequest', "#1# tells you, '#2#'", function(line, sender, message)
+    if not message then return end
+    local trimmed = message:gsub("^%s+", ""):gsub("%s+$", "")
+    local triggerLower = settings.triggerWord:lower()
+
+    if trimmed:lower():find(triggerLower, 1, true) ~= 1 then return end
+    if not isAllowedSender(sender) then return end
+
+    local afterTrigger = trimmed:sub(#settings.triggerWord + 1):gsub("^%s+", ""):gsub("%s+$", "")
+    addToQueue(sender, afterTrigger ~= "" and afterTrigger or nil, true)
+end)
 
 while mq.TLO.MacroQuest.GameState() == 'INGAME' do
     mq.doevents()
+
+    -- Detect persona class change
+    if me.Class.ShortName() ~= myClass then
+        myClass = me.Class.ShortName()
+        settings = utils.loadSettings()
+        resolvePresets()
+        if not getSet(settings.selectedSet) then
+            settings.selectedSet = next(settings.sets) or ""
+        end
+        settingsDirty = true
+    end
 
     if settingsDirty then
         utils.saveSettings(settings)
