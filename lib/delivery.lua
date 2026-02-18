@@ -260,13 +260,52 @@ end
 
 function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
     utils.debugOutput(" deliverBag: %s (%d items, freeSlot=pack%d)", entry.name, #entry.items, freeSlot)
-    -- Cast once to produce the bag
-    if not casting.useSource(entry, abortFunc) then
-        utils.output("\arFailed to use source: %s", entry.name)
-        return false
+
+    if entry.clicky then
+        -- Cast source to produce clicky item
+        if not casting.useSource(entry, abortFunc) then
+            utils.output("\arFailed to use source: %s", entry.name)
+            return false
+        end
+        mq.delay(5000, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
+        if not mq.TLO.Cursor.ID() then
+            utils.output("\arNo clicky appeared on cursor after %s.", entry.name)
+            return false
+        end
+
+        -- Verify the cursor item matches the expected clicky
+        local clicky = entry.clickyItem
+        if clicky and clicky.id and mq.TLO.Cursor.ID() ~= clicky.id then
+            utils.output("\arExpected '%s' (ID: %d) on cursor but got '%s' (ID: %d). Autoinventorying.",
+                clicky.name, clicky.id, mq.TLO.Cursor.Name() or "?", mq.TLO.Cursor.ID() or 0)
+            mq.cmd("/autoinventory")
+            mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+            return false
+        end
+
+        -- Inventory the clicky, then use it to produce the bag
+        local clickyName = clicky and clicky.name or mq.TLO.Cursor.Name()
+        utils.debugOutput(" Clicky received: %s", clickyName)
+        mq.cmd("/autoinventory")
+        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+        if mq.TLO.Cursor.ID() then
+            utils.output("\arFailed to autoinventory clicky: %s", clickyName)
+            return false
+        end
+
+        mq.delay(5000, function() return mq.TLO.Me.ItemReady(clickyName)() end)
+        utils.debugOutput(" Using clicky: %s", clickyName)
+        mq.cmdf('/useitem "%s"', clickyName)
+        casting.waitForCastComplete(abortFunc)
+    else
+        -- Normal: cast source directly produces bag
+        if not casting.useSource(entry, abortFunc) then
+            utils.output("\arFailed to use source: %s", entry.name)
+            return false
+        end
     end
 
-    -- Wait for bag on cursor
+    -- Wait for bag on cursor (both paths converge here)
     mq.delay(5000, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
     if not mq.TLO.Cursor.ID() then
         utils.output("\arNo bag appeared on cursor after %s.", entry.name)
@@ -412,6 +451,58 @@ function delivery.cleanupBag(entry, freeSlot)
     else
         utils.output("\arUnexpected cursor item when destroying bag (expected ID %d, got %d). Not destroying.", bagId, mq.TLO.Cursor.ID())
     end
+end
+
+-- Trade Delivery
+
+function delivery.deliverTrade(entry, petSpawn)
+    utils.debugOutput(" deliverTrade: %s", entry.name)
+
+    local item = mq.TLO.FindItem("=" .. entry.name)
+    if not item() or not item.ID() then
+        utils.output("\arItem '%s' not found in inventory.", entry.name)
+        return false
+    end
+
+    if not targetPet(petSpawn) then
+        utils.output("\arFailed to target pet for trade of %s.", entry.name)
+        return false
+    end
+
+    -- Pick up the item
+    mq.cmdf('/nomodkey /itemnotify "%s" leftmouseup', entry.name)
+    mq.delay(1500, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
+    if not mq.TLO.Cursor.ID() then
+        utils.output("\arFailed to pick up %s.", entry.name)
+        return false
+    end
+
+    -- Place in GiveWnd and give
+    if not placeCursorItemInGiveWindow(petSpawn) then
+        utils.output("\arFailed to open GiveWnd for %s. Autoinventorying.", entry.name)
+        mq.cmd("/autoinventory")
+        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+        return false
+    end
+
+    if giveWnd.Open() then
+        mq.cmd("/notify GiveWnd GVW_Give_Button leftmouseup")
+        mq.delay(5000, function() return not giveWnd.Open() end)
+        if giveWnd.Open() then
+            utils.output("\arGiveWnd did not close after giving %s.", entry.name)
+            return false
+        end
+    end
+
+    -- Rejected items are autoinventoried - these are the player's own items, not summoned disposables
+    if mq.TLO.Cursor.ID() then
+        utils.output("\ay%s was rejected by pet. Returning to inventory.", entry.name)
+        mq.cmd("/autoinventory")
+        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+        return false
+    end
+
+    return true
 end
 
 return delivery

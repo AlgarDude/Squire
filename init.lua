@@ -35,6 +35,7 @@ local methods = {
     { key = "cursor", label = "Summon Single Item", },
     { key = "bag",    label = "Summon Bag", },
     { key = "direct", label = "Direct to Pet", },
+    { key = "trade",  label = "Trade from Inventory", },
 }
 
 local sources = {
@@ -67,6 +68,10 @@ local editingIdx = nil
 local editSourceType = ""
 local editSourceName = ""
 local editSourceMethod = ""
+local newSourceClicky = false
+local newSourceClickyItem = nil
+local editSourceClicky = false
+local editSourceClickyItem = nil
 local showHelp = false
 
 -- Helpers
@@ -144,6 +149,8 @@ local function resolvePresets()
                         name = candidate.name,
                         type = candidate.type,
                         method = candidate.method,
+                        clicky = candidate.clicky or false,
+                        clickyItem = candidate.clickyItem,
                         items = candidate.items or {},
                         trashItems = candidate.trashItems or {},
                         candidates = group,
@@ -308,7 +315,7 @@ local function armPet(playerName, setName, fromTell)
             end
 
             -- Verify freeSlot if bag method
-            if entry.method == "bag" and mq.TLO.InvSlot("pack" .. freeSlot).Item.ID() then
+            if entry.method == "bag" and freeSlot and mq.TLO.InvSlot("pack" .. freeSlot).Item.ID() then
                 utils.output("\arFree slot pack%d still occupied. Skipping %s.", freeSlot, entry.name)
                 results[i] = false
             else
@@ -319,6 +326,8 @@ local function armPet(playerName, setName, fromTell)
                     success = delivery.deliverCursor(entry, petSpawn, abortFunc)
                 elseif entry.method == "bag" then
                     success = delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
+                elseif entry.method == "trade" then
+                    success = delivery.deliverTrade(entry, petSpawn)
                 end
                 results[i] = success
             end
@@ -646,10 +655,11 @@ local function renderWindowBg()
     local imgSize = math.min(availW, availH)
     local offsetX = (availW - imgSize) * 0.5
     local offsetY = (availH - imgSize) * 0.5
-    imgui.SetCursorPos(startPos.x + offsetX, startPos.y + offsetY)
-    imgui.Image(bgTexture:GetTextureID(), ImVec2(imgSize, imgSize),
-        ImVec2(0, 0), ImVec2(1, 1), ImVec4(1, 1, 1, 0.12))
-    imgui.SetCursorPos(startPos.x, startPos.y)
+    local winPos = imgui.GetWindowPosVec()
+    local pMin = ImVec2(winPos.x + startPos.x + offsetX, winPos.y + startPos.y + offsetY)
+    local pMax = ImVec2(pMin.x + imgSize, pMin.y + imgSize)
+    imgui.GetWindowDrawList():AddImage(bgTexture:GetTextureID(), pMin, pMax,
+        ImVec2(0, 0), ImVec2(1, 1), IM_COL32(255, 255, 255, 30))
 end
 
 local function renderToggle(id, value)
@@ -682,8 +692,8 @@ local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, head
     local entry = currentSet[idx]
     local suffix = preRender and "_pre" or ""
 
-    -- Source icon overlay (post-render only)
-    if not preRender and entry.name ~= "" then
+    -- Source icon overlay (post-render only, skip for trade - no source casting)
+    if not preRender and entry.name ~= "" and entry.method ~= "trade" then
         local iconCell, iconAnim
         if entry.type == "item" then
             local item = mq.TLO.FindItem("=" .. entry.name)
@@ -754,6 +764,8 @@ local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, head
             editSourceType = entry.type
             editSourceName = entry.name
             editSourceMethod = entry.method
+            editSourceClicky = entry.clicky or false
+            editSourceClickyItem = entry.clickyItem and { id = entry.clickyItem.id, name = entry.clickyItem.name, icon = entry.clickyItem.icon } or nil
         end
 
         imgui.SameLine()
@@ -897,8 +909,8 @@ local function renderUI()
 
     -- Settings Window
     if showSettings then
-        imgui.SetNextWindowSize(ImVec2(400, 420), ImGuiCond.FirstUseEver)
-        imgui.SetNextWindowSizeConstraints(ImVec2(400, 420), ImVec2(800, 2000))
+        imgui.SetNextWindowSize(ImVec2(445, 465), ImGuiCond.FirstUseEver)
+        imgui.SetNextWindowSizeConstraints(ImVec2(445, 465), ImVec2(800, 2000))
         local settingsDraw
         showSettings, settingsDraw = imgui.Begin("Squire Settings###SquireSettings", showSettings)
         if settingsDraw then
@@ -994,7 +1006,7 @@ local function renderUI()
                 settings.allowMovement = false
                 imgui.EndDisabled()
             end
-
+            imgui.SameLine(0, 30)
             settings.debugMode, changed = imgui.Checkbox("Debug Logging", settings.debugMode)
             if changed then
                 utils.debugMode = settings.debugMode
@@ -1009,6 +1021,8 @@ local function renderUI()
             imgui.SeparatorText("Commands")
             imgui.PopStyleColor()
             imgui.Spacing()
+            local _, availY = imgui.GetContentRegionAvail()
+            imgui.BeginChild("##CommandsScroll", ImVec2(0, availY - 80), 0)
             imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
             for _, name in ipairs(commandOrder) do
                 local cmd = commands[name]
@@ -1016,6 +1030,7 @@ local function renderUI()
                 imgui.TextWrapped(string.format("%s - %s", cmd.usage, cmd.about))
             end
             imgui.PopStyleColor()
+            imgui.EndChild()
 
             -- Logo and credits at bottom
             imgui.SetCursorPosY(imgui.GetWindowHeight() - 75 - imgui.GetStyle().WindowPadding.y)
@@ -1163,6 +1178,8 @@ local function renderUI()
                                     name = entry.name,
                                     type = entry.type,
                                     method = entry.method,
+                                    clicky = entry.clicky or false,
+                                    clickyItem = entry.clickyItem and { id = entry.clickyItem.id, name = entry.clickyItem.name, icon = entry.clickyItem.icon } or nil,
                                     items = {},
                                     trashItems = {},
                                 }
@@ -1255,6 +1272,21 @@ local function renderUI()
                     -- Expanded content: item management
                     if headerOpen and entry.method ~= "direct" then
                         imgui.Indent()
+
+                        if entry.clicky and entry.clickyItem then
+                            imgui.Text("Clicky:")
+                            imgui.SameLine()
+                            if entry.clickyItem.icon then
+                                local iconPos = imgui.GetCursorScreenPosVec()
+                                imgui.Dummy(16, 16)
+                                local drawList = imgui.GetWindowDrawList()
+                                animItems:SetTextureCell(entry.clickyItem.icon - 500)
+                                drawList:AddTextureAnimation(animItems, iconPos, ImVec2(16, 16))
+                                imgui.SameLine()
+                            end
+                            imgui.Text(entry.clickyItem.name)
+                            imgui.Spacing()
+                        end
 
                         imgui.Text("Items to Give:")
                         local removeItemIdx = nil
@@ -1405,6 +1437,8 @@ local function renderUI()
                         newSourceName = ""
                         newSourceType = "spell"
                         newSourceMethod = "cursor"
+                        newSourceClicky = false
+                        newSourceClickyItem = nil
                         showAddSource = true
                     end
                 end
@@ -1425,24 +1459,6 @@ local function renderUI()
                 showAddSource = false
             end
             if addDraw then
-                local nsIdx = findIndex(sources, newSourceType)
-                imgui.Text("Source Type:")
-                imgui.SameLine()
-                imgui.SetNextItemWidth(180)
-                if imgui.BeginCombo("##newType", sources[nsIdx].label) then
-                    for _, src in ipairs(sources) do
-                        if imgui.Selectable(src.label, src.key == newSourceType) then
-                            newSourceType = src.key
-                        end
-                    end
-                    imgui.EndCombo()
-                end
-
-                imgui.Text(sources[nsIdx].label .. " Name:")
-                imgui.SameLine()
-                imgui.SetNextItemWidth(250)
-                newSourceName = imgui.InputTextWithHint("##newName", "Exact In-Game Name", newSourceName)
-
                 local nmIdx = findIndex(methods, newSourceMethod)
                 imgui.Text("Method:")
                 imgui.SameLine()
@@ -1456,16 +1472,81 @@ local function renderUI()
                     imgui.EndCombo()
                 end
 
+                if newSourceMethod ~= "trade" then
+                    local nsIdx = findIndex(sources, newSourceType)
+                    imgui.Text("Source Type:")
+                    imgui.SameLine()
+                    imgui.SetNextItemWidth(180)
+                    if imgui.BeginCombo("##newType", sources[nsIdx].label) then
+                        for _, src in ipairs(sources) do
+                            if imgui.Selectable(src.label, src.key == newSourceType) then
+                                newSourceType = src.key
+                            end
+                        end
+                        imgui.EndCombo()
+                    end
+
+                    imgui.Text(sources[nsIdx].label .. " Name:")
+                else
+                    imgui.Text("Item Name:")
+                end
+                imgui.SameLine()
+                imgui.SetNextItemWidth(250)
+                newSourceName = imgui.InputTextWithHint("##newName", "Exact In-Game Name", newSourceName)
+
+                if newSourceMethod == "bag" then
+                    newSourceClicky = imgui.Checkbox("Source produces clicky item", newSourceClicky)
+                    if newSourceClicky then
+                        imgui.Text("Clicky Item:")
+                        imgui.SameLine()
+                        if newSourceClickyItem then
+                            if newSourceClickyItem.icon then
+                                local iconPos = imgui.GetCursorScreenPosVec()
+                                imgui.Dummy(16, 16)
+                                local drawList = imgui.GetWindowDrawList()
+                                animItems:SetTextureCell(newSourceClickyItem.icon - 500)
+                                drawList:AddTextureAnimation(animItems, iconPos, ImVec2(16, 16))
+                                imgui.SameLine()
+                            end
+                            imgui.Text(newSourceClickyItem.name)
+                            imgui.SameLine()
+                            if imgui.SmallButton(icons.FA_TRASH .. "##clearClicky") then
+                                newSourceClickyItem = nil
+                            end
+                        else
+                            local hasCursor = mq.TLO.Cursor.ID()
+                            if not hasCursor then imgui.BeginDisabled() end
+                            if imgui.SmallButton("Add from Cursor##clicky") then
+                                newSourceClickyItem = {
+                                    id = mq.TLO.Cursor.ID(),
+                                    name = mq.TLO.Cursor.Name() or "",
+                                    icon = mq.TLO.Cursor.Icon(),
+                                }
+                            end
+                            if not hasCursor then
+                                imgui.EndDisabled()
+                                if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
+                                    imgui.SetTooltip("Place the clicky item on your cursor, then click to capture.")
+                                end
+                            end
+                        end
+                    end
+                end
+
                 imgui.Spacing()
                 if imgui.Button("Create") and newSourceName ~= "" then
                     local newEntry = utils.defaultSourceEntry()
                     newEntry.enabled = true
                     newEntry.name = newSourceName
-                    newEntry.type = newSourceType
+                    newEntry.type = newSourceMethod == "trade" and "item" or newSourceType
                     newEntry.method = newSourceMethod
+                    newEntry.clicky = newSourceClicky
+                    newEntry.clickyItem = newSourceClickyItem
                     table.insert(currentSet, newEntry)
                     settingsDirty = true
                     showAddSource = false
+                    newSourceClicky = false
+                    newSourceClickyItem = nil
                 end
                 imgui.SameLine()
                 if imgui.Button("Cancel##AddSource") then
@@ -1489,24 +1570,6 @@ local function renderUI()
                 editingIdx = nil
             end
             if editDraw then
-                local tIdx = findIndex(sources, editSourceType)
-                imgui.Text("Source Type:")
-                imgui.SameLine()
-                imgui.SetNextItemWidth(180)
-                if imgui.BeginCombo("##editType", sources[tIdx].label) then
-                    for _, src in ipairs(sources) do
-                        if imgui.Selectable(src.label, src.key == editSourceType) then
-                            editSourceType = src.key
-                        end
-                    end
-                    imgui.EndCombo()
-                end
-
-                imgui.Text(sources[tIdx].label .. " Name:")
-                imgui.SameLine()
-                imgui.SetNextItemWidth(250)
-                editSourceName = imgui.InputTextWithHint("##editName", "Exact In-Game Name", editSourceName)
-
                 local mIdx = findIndex(methods, editSourceMethod)
                 imgui.Text("Method:")
                 imgui.SameLine()
@@ -1520,11 +1583,74 @@ local function renderUI()
                     imgui.EndCombo()
                 end
 
+                if editSourceMethod ~= "trade" then
+                    local tIdx = findIndex(sources, editSourceType)
+                    imgui.Text("Source Type:")
+                    imgui.SameLine()
+                    imgui.SetNextItemWidth(180)
+                    if imgui.BeginCombo("##editType", sources[tIdx].label) then
+                        for _, src in ipairs(sources) do
+                            if imgui.Selectable(src.label, src.key == editSourceType) then
+                                editSourceType = src.key
+                            end
+                        end
+                        imgui.EndCombo()
+                    end
+
+                    imgui.Text(sources[tIdx].label .. " Name:")
+                else
+                    imgui.Text("Item Name:")
+                end
+                imgui.SameLine()
+                imgui.SetNextItemWidth(250)
+                editSourceName = imgui.InputTextWithHint("##editName", "Exact In-Game Name", editSourceName)
+
+                if editSourceMethod == "bag" then
+                    editSourceClicky = imgui.Checkbox("Source produces clicky item", editSourceClicky)
+                    if editSourceClicky then
+                        imgui.Text("Clicky Item:")
+                        imgui.SameLine()
+                        if editSourceClickyItem then
+                            if editSourceClickyItem.icon then
+                                local iconPos = imgui.GetCursorScreenPosVec()
+                                imgui.Dummy(16, 16)
+                                local drawList = imgui.GetWindowDrawList()
+                                animItems:SetTextureCell(editSourceClickyItem.icon - 500)
+                                drawList:AddTextureAnimation(animItems, iconPos, ImVec2(16, 16))
+                                imgui.SameLine()
+                            end
+                            imgui.Text(editSourceClickyItem.name)
+                            imgui.SameLine()
+                            if imgui.SmallButton(icons.FA_TRASH .. "##clearClicky") then
+                                editSourceClickyItem = nil
+                            end
+                        else
+                            local hasCursor = mq.TLO.Cursor.ID()
+                            if not hasCursor then imgui.BeginDisabled() end
+                            if imgui.SmallButton("Add from Cursor##clicky") then
+                                editSourceClickyItem = {
+                                    id = mq.TLO.Cursor.ID(),
+                                    name = mq.TLO.Cursor.Name() or "",
+                                    icon = mq.TLO.Cursor.Icon(),
+                                }
+                            end
+                            if not hasCursor then
+                                imgui.EndDisabled()
+                                if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
+                                    imgui.SetTooltip("Place the clicky item on your cursor, then click to capture.")
+                                end
+                            end
+                        end
+                    end
+                end
+
                 imgui.Spacing()
                 if imgui.Button("Save") then
-                    entry.type = editSourceType
+                    entry.type = editSourceMethod == "trade" and "item" or editSourceType
                     entry.name = editSourceName
                     entry.method = editSourceMethod
+                    entry.clicky = editSourceClicky
+                    entry.clickyItem = editSourceClickyItem
                     settingsDirty = true
                     editingIdx = nil
                 end
@@ -1583,6 +1709,11 @@ local function renderUI()
             imgui.BulletText(methods[3].label)
             imgui.Indent()
             imgui.TextWrapped("Equips an item directly on the pet. No items to set up.")
+            imgui.Unindent()
+            imgui.Spacing()
+            imgui.BulletText(methods[4].label)
+            imgui.Indent()
+            imgui.TextWrapped("Trade an item already in your inventory to the pet. One item per entry.")
             imgui.Unindent()
             imgui.PopStyleColor()
 

@@ -55,6 +55,8 @@ function utils.defaultSourceEntry()
         name = "",
         type = "spell",
         method = "cursor",
+        clicky = false,
+        clickyItem = nil,
         items = {},
         trashItems = {},
     }

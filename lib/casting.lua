@@ -107,7 +107,7 @@ end
 
 -- Source Execution
 
-local function waitForCastComplete(abortFunc)
+function casting.waitForCastComplete(abortFunc)
     -- Wait for casting to start (up to 1s)
     mq.delay(1000, function() return me.Casting() ~= nil end)
 
@@ -130,7 +130,7 @@ function casting.useSource(entry, abortFunc)
 
         utils.debugOutput("Casting spell '%s' from gem %d", entry.name, gem)
         mq.cmdf("/cast %d", gem)
-        waitForCastComplete(abortFunc)
+        casting.waitForCastComplete(abortFunc)
         return true
     elseif entry.type == "aa" then
         if not utils.waitFor(function() return me.AltAbilityReady(entry.name)() end, 30000, 100, abortFunc) then
@@ -140,7 +140,7 @@ function casting.useSource(entry, abortFunc)
 
         utils.debugOutput("Using AA '%s'", entry.name)
         mq.cmdf("/aa act %s", entry.name)
-        waitForCastComplete(abortFunc)
+        casting.waitForCastComplete(abortFunc)
         return true
     elseif entry.type == "item" then
         if not utils.waitFor(function() return me.ItemReady(entry.name)() end, 30000, 100, abortFunc) then
@@ -150,7 +150,7 @@ function casting.useSource(entry, abortFunc)
 
         utils.debugOutput("Using item '%s'", entry.name)
         mq.cmdf('/useitem "%s"', entry.name)
-        waitForCastComplete(abortFunc)
+        casting.waitForCastComplete(abortFunc)
         return true
     end
 
