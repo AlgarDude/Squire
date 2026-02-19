@@ -125,41 +125,64 @@ local function resolvePresets()
     end
 
     for _, definition in ipairs(rawPresets) do
-        local title = definition.title:gsub("Class", me.Class.ShortName())
+        local classMatch = not definition.classes
         if definition.classes then
-            presetClassMap[title] = definition.classes
-        end
-
-        local resolvedSet = {}
-        for _, group in ipairs(definition.effects) do
-            for _, candidate in ipairs(group) do
-                local available = false
-                if candidate.type == "spell" then
-                    available = me.Book(candidate.name)() ~= nil and (mq.TLO.Spell(candidate.name).Level() or 0) <= me.Level()
-                elseif candidate.type == "aa" then
-                    available = (me.AltAbility(candidate.name).Rank() or 0) > 0
-                elseif candidate.type == "item" then
-                    local item = mq.TLO.FindItem("=" .. candidate.name)
-                    available = item() ~= nil and (item.Clicky.RequiredLevel() or 0) <= me.Level()
-                end
-
-                if available then
-                    table.insert(resolvedSet, {
-                        enabled = true,
-                        name = candidate.name,
-                        type = candidate.type,
-                        method = candidate.method,
-                        clicky = candidate.clicky or false,
-                        clickyItem = candidate.clickyItem,
-                        items = candidate.items or {},
-                        trashItems = candidate.trashItems or {},
-                        candidates = group,
-                    })
+            for _, cls in ipairs(definition.classes) do
+                if cls == myClass then
+                    classMatch = true
                     break
                 end
             end
         end
-        presetSets[title] = resolvedSet
+
+        if classMatch then
+            local title = definition.title:gsub("Class", myClass)
+
+            local resolvedSet = {}
+            for _, group in ipairs(definition.effects) do
+                local found = false
+                for _, candidate in ipairs(group) do
+                    local available = false
+                    if candidate.type == "spell" then
+                        available = me.Book(candidate.name)() ~= nil and (mq.TLO.Spell(candidate.name).Level() or 0) <= me.Level()
+                    elseif candidate.type == "aa" then
+                        available = (me.AltAbility(candidate.name).Rank() or 0) > 0
+                    elseif candidate.type == "item" then
+                        local item = mq.TLO.FindItem("=" .. candidate.name)
+                        available = item() ~= nil and (item.Clicky.RequiredLevel() or 0) <= me.Level()
+                    end
+
+                    if available then
+                        table.insert(resolvedSet, {
+                            enabled = true,
+                            name = candidate.name,
+                            type = candidate.type,
+                            method = candidate.method,
+                            clicky = candidate.clicky or false,
+                            clickyItem = candidate.clickyItem,
+                            items = candidate.items or {},
+                            trashItems = candidate.trashItems or {},
+                            candidates = group,
+                        })
+                        found = true
+                        break
+                    end
+                end
+                if not found then
+                    table.insert(resolvedSet, {
+                        enabled = false,
+                        name = "",
+                        type = "",
+                        method = "",
+                        items = {},
+                        trashItems = {},
+                        candidates = group,
+                    })
+                end
+            end
+            presetClassMap[title] = definition.classes
+            presetSets[title] = resolvedSet
+        end
     end
 end
 
@@ -178,21 +201,11 @@ local function getAllSetNames()
     end
     table.sort(names)
 
-    -- Only show presets matching this character's class, skip user-set name collisions
+    -- Add presets not overridden by user sets (class filtering already done in resolvePresets)
     local presetNames = {}
     for name in pairs(presetSets) do
         if not settings.sets[name] then
-            local classes = presetClassMap[name]
-            if not classes then
-                table.insert(presetNames, name)
-            else
-                for _, cls in ipairs(classes) do
-                    if cls == myClass then
-                        table.insert(presetNames, name)
-                        break
-                    end
-                end
-            end
+            table.insert(presetNames, name)
         end
     end
     table.sort(presetNames)
@@ -776,6 +789,9 @@ local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, head
 
     imgui.PopID()
     imgui.SetCursorPos(startingPos.x, startingPos.y)
+    if not preRender then
+        imgui.Dummy(0, 0)
+    end
 end
 
 local function renderUI()
@@ -1044,7 +1060,11 @@ local function renderUI()
             local lineY = blockY
             if shieldTexture then
                 imgui.SetCursorPosY(lineY + 13)
-                imgui.Image(shieldTexture:GetTextureID(), ImVec2(23, 20), ImVec2(0, 0), ImVec2(1, 1), ImVec4(0.0, 0.6, 0.6, 1.0))
+                local shieldPos = imgui.GetCursorScreenPosVec()
+                imgui.Dummy(23, 20)
+                imgui.GetWindowDrawList():AddImage(shieldTexture:GetTextureID(),
+                    shieldPos, ImVec2(shieldPos.x + 23, shieldPos.y + 20),
+                    ImVec2(0, 0), ImVec2(1, 1), IM_COL32(0, 153, 153, 255))
                 imgui.SameLine(0, 1)
             end
             imgui.SetWindowFontScale(1.3)
@@ -1165,7 +1185,7 @@ local function renderUI()
 
             -- Copy popup
             if imgui.BeginPopup("CopySetPopup##Edit") then
-                imgui.Text("Copy '%s' as:", settings.selectedSet)
+                imgui.Text(string.format("Copy '%s' as:", settings.selectedSet))
                 newSetName = imgui.InputTextWithHint("##CopySetName", "Set Name", newSetName)
                 if imgui.Button("Copy##Confirm") and newSetName ~= "" then
                     if not settings.sets[newSetName] and not presetSets[newSetName] then
@@ -1207,7 +1227,7 @@ local function renderUI()
 
             -- Rename popup
             if imgui.BeginPopup("RenameSetPopup##Edit") then
-                imgui.Text("Rename '%s' to:", settings.selectedSet)
+                imgui.Text(string.format("Rename '%s' to:", settings.selectedSet))
                 renameSetName = imgui.InputTextWithHint("##RenameSetName", "Set Name", renameSetName)
                 if imgui.Button("Rename##Confirm") and renameSetName ~= "" and renameSetName ~= settings.selectedSet then
                     if not settings.sets[renameSetName] and not presetSets[renameSetName] then
@@ -1227,7 +1247,7 @@ local function renderUI()
 
             -- Delete popup
             if imgui.BeginPopup("DeleteSetPopup##Edit") then
-                imgui.Text("Delete '%s'?", settings.selectedSet)
+                imgui.Text(string.format("Delete '%s'?", settings.selectedSet))
                 if imgui.Button("Yes, Delete") then
                     settings.sets[settings.selectedSet] = nil
                     local firstSet = next(settings.sets) or next(presetSets)
@@ -1259,18 +1279,26 @@ local function renderUI()
                     renderSourceHeaderControls(currentSet, i, headerCursorPos, headerScreenPos, true, editable)
 
                     -- Build display name
-                    local displayName = entry.name ~= "" and entry.name or "(unnamed)"
-                    if entry.items and #entry.items > 0 then
-                        displayName = displayName .. string.format(" (%d item%s)", #entry.items, #entry.items > 1 and "s" or "")
+                    local unresolved = entry.name == "" and entry.candidates
+                    local displayName
+                    if unresolved then
+                        displayName = "(No Source Found)"
+                    else
+                        displayName = entry.name ~= "" and entry.name or "(unnamed)"
+                        if entry.items and #entry.items > 0 then
+                            displayName = displayName .. string.format(" (%d item%s)", #entry.items, #entry.items > 1 and "s" or "")
+                        end
                     end
 
+                    if unresolved then imgui.PushStyleColor(ImGuiCol.Text, ImVec4(0.5, 0.5, 0.5, 1.0)) end
                     local headerOpen = imgui.CollapsingHeader("       " .. displayName .. "###header")
+                    if unresolved then imgui.PopStyleColor() end
 
                     -- Post-render: visible controls + icon overlay (drawn after header)
                     renderSourceHeaderControls(currentSet, i, headerCursorPos, headerScreenPos, false, editable)
 
                     -- Expanded content: item management
-                    if headerOpen and entry.method ~= "direct" then
+                    if headerOpen and entry.method ~= "direct" and not unresolved then
                         imgui.Indent()
 
                         if entry.clicky and entry.clickyItem then
@@ -1386,10 +1414,14 @@ local function renderUI()
                         imgui.Unindent()
                     end
 
-                    if headerOpen and entry.candidates and #entry.candidates > 1 then
+                    if headerOpen and entry.candidates and (#entry.candidates > 1 or unresolved) then
                         imgui.Indent()
                         imgui.Separator()
-                        imgui.Text("Priority List:")
+                        if unresolved then
+                            imgui.TextColored(1, 0.6, 0, 1, "None of these sources are available:")
+                        else
+                            imgui.Text("Priority List:")
+                        end
                         for _, candidate in ipairs(entry.candidates) do
                             local label = string.format("%s (%s)", candidate.name, candidate.type)
                             if candidate.name == entry.name then
@@ -1416,7 +1448,7 @@ local function renderUI()
                         local entryName = pendingRemoveIdx and currentSet[pendingRemoveIdx]
                             and currentSet[pendingRemoveIdx].name or ""
                         if entryName == "" then entryName = "Source " .. (pendingRemoveIdx or 0) end
-                        imgui.Text("Remove '%s'?", entryName)
+                        imgui.Text(string.format("Remove '%s'?", entryName))
                         if imgui.Button("Yes, Remove") then
                             table.remove(currentSet, pendingRemoveIdx)
                             settingsDirty = true
@@ -1765,14 +1797,18 @@ local function startup()
 
     -- Auto-class selection on first load (no user sets, default selectedSet)
     if next(settings.sets) == nil and settings.selectedSet == "" then
+        local found = false
         for presetName, classes in pairs(presetClassMap) do
             for _, class in ipairs(classes) do
                 if class == myClass then
                     settings.selectedSet = presetName
                     settingsDirty = true
                     utils.output("Auto-selected preset '%s' based on class.", presetName)
+                    found = true
+                    break
                 end
             end
+            if found then break end
         end
     end
 
