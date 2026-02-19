@@ -92,6 +92,12 @@ function casting.prepareSpells(set)
         end
     end
 
+    -- Stand up after memorization (scribing sits you down)
+    if me.Sitting() then
+        mq.cmd("/stand")
+        mq.delay(2000, function() return me.Standing() end)
+    end
+
     return gemMap
 end
 

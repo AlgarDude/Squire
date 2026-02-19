@@ -263,6 +263,10 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
     utils.debugOutput(" deliverBag: %s (%d items, freeSlot=pack%d)", entry.name, #entry.items, freeSlot)
 
     if entry.clicky then
+        -- Target self (clicky spells are single-target, not self-target)
+        mq.TLO.Me.DoTarget()
+        mq.delay(1500, function() return mq.TLO.Target.ID() == mq.TLO.Me.ID() end)
+
         -- Cast source to produce clicky item
         if not casting.useSource(entry, abortFunc) then
             utils.output("\arFailed to use source: %s", entry.name)
@@ -334,7 +338,7 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
     local settleStart = mq.gettime()
     mq.delay(1000, function()
         return mq.gettime() - settleStart >= 300
-            and mq.TLO.InvSlot("pack" .. freeSlot).Item.Item(1).ID()
+            and mq.TLO.InvSlot("pack" .. freeSlot).Item.Item(1).ID() ~= nil
     end)
     utils.debugOutput(" Inventory settled after %dms", mq.gettime() - settleStart)
 
