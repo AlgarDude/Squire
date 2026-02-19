@@ -34,12 +34,10 @@ function casting.memorizeSpell(gemSlot, spellName)
     utils.debugOutput("Memorizing %s in gem %d...", spellName, gemSlot)
     mq.cmdf('/memspell %d "%s"', gemSlot, spellName)
 
+    -- Wait for spell to appear in gem
     local maxWait = 25000
     while maxWait > 0 do
-        if me.Gem(gemSlot)() == spellName and me.SpellReady(gemSlot)() then
-            utils.debugOutput("Memorized %s in gem %d.", spellName, gemSlot)
-            return gemSlot
-        end
+        if me.Gem(gemSlot)() == spellName then break end
 
         if me.CombatState():lower() == "combat" or me.Casting() or me.Moving() then
             utils.output("\arMemorization of %s interrupted.", spellName)
@@ -51,8 +49,26 @@ function casting.memorizeSpell(gemSlot, spellName)
         maxWait = maxWait - 100
     end
 
-    utils.output("\arTimed out memorizing %s.", spellName)
-    return false
+    if me.Gem(gemSlot)() ~= spellName then
+        utils.output("\arTimed out memorizing %s.", spellName)
+        return false
+    end
+
+    -- Stand up while waiting for recovery
+    if me.Sitting() then
+        mq.cmd("/stand")
+        mq.delay(2000, function() return me.Standing() end)
+    end
+
+    -- Wait for spell to be ready
+    mq.delay(maxWait, function() return me.SpellReady(gemSlot)() end)
+    if not me.SpellReady(gemSlot)() then
+        utils.output("\arSpell %s not ready in time.", spellName)
+        return false
+    end
+
+    utils.debugOutput("Memorized %s in gem %d.", spellName, gemSlot)
+    return gemSlot
 end
 
 -- Spell Preparation
@@ -90,12 +106,6 @@ function casting.prepareSpells(set)
         if result == nextGem then
             nextGem = nextGem - 1
         end
-    end
-
-    -- Stand up after memorization (scribing sits you down)
-    if me.Sitting() then
-        mq.cmd("/stand")
-        mq.delay(2000, function() return me.Standing() end)
     end
 
     return gemMap

@@ -99,11 +99,13 @@ local function targetPet(petSpawn)
     return mq.TLO.Target.ID() == petSpawn.ID()
 end
 
-local function handleRejections(givenItemIds)
+local function handleRejections(givenItemIds, itemCount)
     -- After Give click, cursor may have rejected items - loop until cursor clear
-    local maxLoops = 8
-    while mq.TLO.Cursor.ID() and maxLoops > 0 do
-        maxLoops = maxLoops - 1
+    for _ = 1, itemCount do
+        -- Wait for a rejection to land on cursor (may take a moment after previous clear)
+        mq.delay(500, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
+        if not mq.TLO.Cursor.ID() then break end
+
         local cursorId = mq.TLO.Cursor.ID()
         if givenItemIds[cursorId] then
             utils.debugOutput(" Destroying rejected item: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", cursorId)
@@ -186,7 +188,7 @@ local function batchGive(petSpawn, itemFuncs, abortFunc)
                 utils.output("\arGiveWnd did not close after clicking Give.")
                 allSuccess = false
             end
-            handleRejections(givenIds)
+            handleRejections(givenIds, batchCount)
         end
     end
 
@@ -288,13 +290,13 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
             return false
         end
 
-        -- Inventory the clicky, then use it to produce the bag
+        -- Place clicky into the free slot (containers can't autoinventory into full bags)
         local clickyName = clicky and clicky.name or mq.TLO.Cursor.Name()
-        utils.debugOutput(" Clicky received: %s", clickyName)
-        mq.cmd("/autoinventory")
+        utils.debugOutput(" Clicky received: %s, placing in pack%d", clickyName, freeSlot)
+        mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", freeSlot)
         mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
         if mq.TLO.Cursor.ID() then
-            utils.output("\arFailed to autoinventory clicky: %s", clickyName)
+            utils.output("\arFailed to place clicky in pack%d: %s", freeSlot, clickyName)
             return false
         end
 
