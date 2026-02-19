@@ -778,7 +778,7 @@ local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, head
             editSourceName = entry.name
             editSourceMethod = entry.method
             editSourceClicky = entry.clicky or false
-            editSourceClickyItem = entry.clickyItem and { id = entry.clickyItem.id, name = entry.clickyItem.name, icon = entry.clickyItem.icon } or nil
+            editSourceClickyItem = entry.clickyItem and { id = entry.clickyItem.id, name = entry.clickyItem.name, icon = entry.clickyItem.icon, } or nil
         end
 
         imgui.SameLine()
@@ -1199,7 +1199,7 @@ local function renderUI()
                                     type = entry.type,
                                     method = entry.method,
                                     clicky = entry.clicky or false,
-                                    clickyItem = entry.clickyItem and { id = entry.clickyItem.id, name = entry.clickyItem.name, icon = entry.clickyItem.icon } or nil,
+                                    clickyItem = entry.clickyItem and { id = entry.clickyItem.id, name = entry.clickyItem.name, icon = entry.clickyItem.icon, } or nil,
                                     items = {},
                                     trashItems = {},
                                 }

@@ -65,9 +65,9 @@ end
 local function defaultSettings()
     return {
         debugMode = false,
-        triggerWord = "armpet",
+        triggerWord = "arm",
         selectedSet = "",
-        tellAccess = "anyone",
+        tellAccess = "allowlist",
         tellAllowlist = {},
         tellDenylist = {},
         allowMovement = false,
