@@ -169,7 +169,7 @@ local function batchGive(petSpawn, itemFuncs, abortFunc)
                 ok = false
             end
             if ok then
-                utils.debugOutput("Placed in trade: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", itemFunc.id)
+                utils.debugOutput("Placed in trade: %s (ID: %d)", itemFunc.name or "?", itemFunc.id)
                 givenIds[itemFunc.id] = true
                 batchCount = batchCount + 1
             else
@@ -224,6 +224,7 @@ function delivery.deliverCursor(entry, petSpawn, abortFunc)
     for _, item in ipairs(entry.items) do
         table.insert(itemFuncs, {
             id = item.id,
+            name = item.name,
             getItem = function()
                 if not casting.useSource(entry, abortFunc) then
                     utils.output("\arFailed to use source: %s", entry.name)
@@ -349,6 +350,7 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
     for _, item in ipairs(entry.items) do
         table.insert(itemFuncs, {
             id = item.id,
+            name = item.name,
             getItem = function()
                 local subSlot = findItemInBag(freeSlot, item.id)
                 if not subSlot then

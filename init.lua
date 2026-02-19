@@ -513,20 +513,32 @@ end
 
 -- Command System
 
-local commandOrder = { "arm", "group", "raid", "stop", "show", "hide", "debug", "reset", "help", }
+local function queuePetOwners(getMember, count, setName)
+    for i = 1, count do
+        local member = getMember(i)
+        if member() and member.Name() then
+            local memberSpawn = mq.TLO.Spawn("pc " .. member.Name())
+            if memberSpawn() and memberSpawn.Pet() and memberSpawn.Pet.ID() > 0 then
+                addToQueue(member.Name(), setName, false)
+            end
+        end
+    end
+end
+
+local commandOrder = { "arm", "stop", "show", "hide", "debug", "reset", "help", }
 
 local commands
 commands = {
     arm = {
-        usage = "/squire arm <name|self|target> [set]",
-        about = "Arm a player's pet",
+        usage = "/squire arm <scope> [set]",
+        about = "Arm pets (self/target/group/raid/PlayerName)",
         handler = function(args)
-            local target = args[2] or ""
+            local scope = args[2] and args[2]:lower() or ""
             local setName = joinArgs(args, 3)
 
-            if target:lower() == "self" then
+            if scope == "self" then
                 addToQueue("self", setName, false)
-            elseif target:lower() == "target" then
+            elseif scope == "target" then
                 local t = mq.TLO.Target
                 if not t() or t.Type() ~= "PC" then
                     utils.output("\ayTarget is not a PC.")
@@ -535,44 +547,14 @@ commands = {
                 else
                     addToQueue(t.Name(), setName, false)
                 end
-            elseif target ~= "" then
-                addToQueue(target, setName, false)
+            elseif scope == "group" then
+                queuePetOwners(mq.TLO.Group.Member, (mq.TLO.Group.GroupSize() or 1) - 1, setName)
+            elseif scope == "raid" then
+                queuePetOwners(mq.TLO.Raid.Member, mq.TLO.Raid.Members() or 0, setName)
+            elseif scope ~= "" then
+                addToQueue(args[2], setName, false)
             else
-                utils.output("Usage: /squire arm <PlayerName|self|target> [SetName]")
-            end
-        end,
-    },
-    group = {
-        usage = "/squire group [set]",
-        about = "Arm all pets in group",
-        handler = function(args)
-            local setName = joinArgs(args, 2)
-            local groupSize = mq.TLO.Group.GroupSize() or 0
-            for i = 1, groupSize - 1 do
-                local member = mq.TLO.Group.Member(i)
-                if member() and member.Name() then
-                    local memberSpawn = mq.TLO.Spawn("pc " .. member.Name())
-                    if memberSpawn() and memberSpawn.Pet() and memberSpawn.Pet.ID() > 0 then
-                        addToQueue(member.Name(), setName, false)
-                    end
-                end
-            end
-        end,
-    },
-    raid = {
-        usage = "/squire raid [set]",
-        about = "Arm all pets in raid",
-        handler = function(args)
-            local setName = joinArgs(args, 2)
-            local raidMembers = mq.TLO.Raid.Members() or 0
-            for i = 1, raidMembers do
-                local member = mq.TLO.Raid.Member(i)
-                if member() and member.Name() then
-                    local memberSpawn = mq.TLO.Spawn("pc " .. member.Name())
-                    if memberSpawn() and memberSpawn.Pet() and memberSpawn.Pet.ID() > 0 then
-                        addToQueue(member.Name(), setName, false)
-                    end
-                end
+                utils.output("Usage: /squire arm <self|target|group|raid|PlayerName> [SetName]")
             end
         end,
     },
@@ -865,11 +847,11 @@ local function renderUI()
         end
         imgui.SameLine()
         if imgui.Button("Group Pets") then
-            commandHandler("group")
+            commandHandler("arm", "group")
         end
         imgui.SameLine()
         if imgui.Button("Raid Pets") then
-            commandHandler("raid")
+            commandHandler("arm", "raid")
         end
         imgui.PopStyleVar()
 
@@ -1057,9 +1039,8 @@ local function renderUI()
                 imgui.SameLine(0, 2)
             end
             imgui.BeginGroup()
-            local lineY = blockY
             if shieldTexture then
-                imgui.SetCursorPosY(lineY + 13)
+                imgui.SetCursorPosY(blockY + 13)
                 local shieldPos = imgui.GetCursorScreenPosVec()
                 imgui.Dummy(23, 20)
                 imgui.GetWindowDrawList():AddImage(shieldTexture:GetTextureID(),
@@ -1068,14 +1049,14 @@ local function renderUI()
                 imgui.SameLine(0, 1)
             end
             imgui.SetWindowFontScale(1.3)
-            imgui.SetCursorPosY(lineY + 13)
+            imgui.SetCursorPosY(blockY + 13)
             imgui.TextColored(0.0, 0.6, 0.6, 1.0, "Squire")
             imgui.SetWindowFontScale(1.0)
             imgui.SameLine(0, 4)
-            imgui.SetCursorPosY(lineY + 17)
+            imgui.SetCursorPosY(blockY + 17)
             imgui.Text("v1.0 by")
             imgui.SameLine(0, 4)
-            imgui.SetCursorPosY(lineY + 13)
+            imgui.SetCursorPosY(blockY + 13)
             imgui.SetWindowFontScale(1.3)
             imgui.TextColored(1.0, 0.5, 0.0, 1.0, "Algar")
             imgui.SetWindowFontScale(1.0)
@@ -1193,23 +1174,25 @@ local function renderUI()
                         if sourceSet then
                             local newSet = {}
                             for _, entry in ipairs(sourceSet) do
-                                local copy = {
-                                    enabled = entry.enabled,
-                                    name = entry.name,
-                                    type = entry.type,
-                                    method = entry.method,
-                                    clicky = entry.clicky or false,
-                                    clickyItem = entry.clickyItem and { id = entry.clickyItem.id, name = entry.clickyItem.name, icon = entry.clickyItem.icon, } or nil,
-                                    items = {},
-                                    trashItems = {},
-                                }
-                                for _, item in ipairs(entry.items) do
-                                    table.insert(copy.items, { id = item.id, name = item.name, icon = item.icon, })
+                                if entry.name ~= "" then
+                                    local copy = {
+                                        enabled = entry.enabled,
+                                        name = entry.name,
+                                        type = entry.type,
+                                        method = entry.method,
+                                        clicky = entry.clicky or false,
+                                        clickyItem = entry.clickyItem and { id = entry.clickyItem.id, name = entry.clickyItem.name, icon = entry.clickyItem.icon, } or nil,
+                                        items = {},
+                                        trashItems = {},
+                                    }
+                                    for _, item in ipairs(entry.items) do
+                                        table.insert(copy.items, { id = item.id, name = item.name, icon = item.icon, })
+                                    end
+                                    for _, trash in ipairs(entry.trashItems or {}) do
+                                        table.insert(copy.trashItems, { id = trash.id, name = trash.name, icon = trash.icon, })
+                                    end
+                                    table.insert(newSet, copy)
                                 end
-                                for _, trash in ipairs(entry.trashItems or {}) do
-                                    table.insert(copy.trashItems, { id = trash.id, name = trash.name, icon = trash.icon, })
-                                end
-                                table.insert(newSet, copy)
                             end
                             settings.sets[newSetName] = newSet
                             settings.selectedSet = newSetName
@@ -1250,8 +1233,8 @@ local function renderUI()
                 imgui.Text(string.format("Delete '%s'?", settings.selectedSet))
                 if imgui.Button("Yes, Delete") then
                     settings.sets[settings.selectedSet] = nil
-                    local firstSet = next(settings.sets) or next(presetSets)
-                    settings.selectedSet = firstSet or ""
+                    local remaining = getAllSetNames()
+                    settings.selectedSet = remaining[1] or ""
                     settingsDirty = true
                     imgui.CloseCurrentPopup()
                 end

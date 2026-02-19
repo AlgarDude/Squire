@@ -97,9 +97,9 @@ function utils.loadSettings()
     end
 
     -- Merge defaults into each source entry
-    for setName, set in pairs(settings.sets) do
+    for _, set in pairs(settings.sets) do
         if type(set) == "table" then
-            for i, entry in ipairs(set) do
+            for _, entry in ipairs(set) do
                 local def = utils.defaultSourceEntry()
                 for key, value in pairs(def) do
                     if entry[key] == nil then
