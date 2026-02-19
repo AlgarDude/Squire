@@ -639,9 +639,9 @@ end
 
 local animItems = mq.FindTextureAnimation("A_DragItem")
 local animSpells = mq.FindTextureAnimation("A_SpellIcons")
-local bgTexture = mq.CreateTexture(mq.TLO.Lua.Dir() .. "/squire/resources/squire.png")
-local logoTexture = mq.CreateTexture(mq.TLO.Lua.Dir() .. "/squire/resources/algar_60.png")
-local shieldTexture = mq.CreateTexture(mq.TLO.Lua.Dir() .. "/squire/resources/shieldicon.png")
+local bgTexture = mq.CreateTexture(mq.luaDir .. "/squire/resources/squire.png")
+local logoTexture = mq.CreateTexture(mq.luaDir .. "/squire/resources/algar_60.png")
+local shieldTexture = mq.CreateTexture(mq.luaDir .. "/squire/resources/shieldicon.png")
 
 local function renderWindowBg()
     if not bgTexture then return end
