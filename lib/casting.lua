@@ -9,6 +9,11 @@ local utils = require('squire.lib.utils')
 local casting = {}
 local gemMap = {}
 local me = mq.TLO.Me
+local fizzled = false
+
+mq.event('squireFizzle', "Your #1# spell fizzles!", function()
+    fizzled = true
+end)
 
 -- Spell Memorization
 
@@ -124,11 +129,21 @@ end
 -- Source Execution
 
 function casting.waitForCastComplete(abortFunc)
+    fizzled = false
+
     -- Wait for casting to start (up to 1s)
-    mq.delay(1000, function() return me.Casting() ~= nil end)
+    mq.delay(1000, function()
+        mq.doevents('squireFizzle')
+        return me.Casting() ~= nil or fizzled
+    end)
+
+    if fizzled then return end
 
     -- Wait for casting to finish
-    utils.waitFor(function() return not me.Casting() end, 30000, 100, abortFunc)
+    utils.waitFor(function()
+        mq.doevents('squireFizzle')
+        return fizzled or not me.Casting()
+    end, 30000, 100, abortFunc)
 end
 
 function casting.useSource(entry, abortFunc)
@@ -144,10 +159,22 @@ function casting.useSource(entry, abortFunc)
             return false
         end
 
-        utils.debugOutput("Casting spell '%s' from gem %d", entry.name, gem)
-        mq.cmdf("/cast %d", gem)
-        casting.waitForCastComplete(abortFunc)
-        return true
+        for attempt = 1, 3 do
+            if abortFunc and abortFunc() then return false end
+            utils.debugOutput("Casting spell '%s' from gem %d", entry.name, gem)
+            mq.cmdf("/cast %d", gem)
+            casting.waitForCastComplete(abortFunc)
+            if not fizzled then return true end
+            if attempt < 3 then
+                utils.debugOutput("Spell fizzled (attempt %d/3), retrying...", attempt)
+                if not utils.waitFor(function() return me.SpellReady(gem)() end, 30000, 100, abortFunc) then
+                    utils.output("\arSpell %s not ready in time after fizzle.", entry.name)
+                    return false
+                end
+            end
+        end
+        utils.output("\arSpell %s fizzled 3 times. Giving up.", entry.name)
+        return false
     elseif entry.type == "aa" then
         if not utils.waitFor(function() return me.AltAbilityReady(entry.name)() end, 30000, 100, abortFunc) then
             utils.output("\arAA %s not ready in time.", entry.name)

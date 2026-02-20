@@ -422,29 +422,46 @@ function delivery.cleanupBag(entry, freeSlot)
         return
     end
 
-    -- Handle each remaining sub-item
+    -- Check if any sub-items need saving (non-temporary and not in trash list)
+    local hasPermanentItems = false
     for s = 1, container do
-        local subItemId = mq.TLO.InvSlot("pack" .. freeSlot).Item.Item(s).ID()
-        if subItemId then
-            mq.cmdf("/nomodkey /itemnotify in pack%d %d leftmouseup", freeSlot, s)
-            mq.delay(1500, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
-            if not mq.TLO.Cursor.ID() then
-                utils.output("\arFailed to pick up sub-item from pack%d slot %d during cleanup.", freeSlot, s)
-            else
-                if trashIds[mq.TLO.Cursor.ID()] then
-                    utils.debugOutput("Destroying cleanup item: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", mq.TLO.Cursor.ID())
-                    mq.cmd("/destroy")
-                    mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+        local subItem = mq.TLO.InvSlot("pack" .. freeSlot).Item.Item(s)
+        if subItem.ID() and not trashIds[subItem.ID()] and not subItem.NoRent() then
+            hasPermanentItems = true
+            break
+        end
+    end
+
+    -- Only do per-item cleanup if there are permanent items to save
+    if hasPermanentItems then
+        for s = 1, container do
+            local subItemId = mq.TLO.InvSlot("pack" .. freeSlot).Item.Item(s).ID()
+            if subItemId then
+                mq.cmdf("/nomodkey /itemnotify in pack%d %d leftmouseup", freeSlot, s)
+                mq.delay(1500, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
+                if not mq.TLO.Cursor.ID() then
+                    utils.output("\arFailed to pick up sub-item from pack%d slot %d during cleanup.", freeSlot, s)
                 else
-                    utils.output("\ayUnexpected item in bag (ID: %d) - autoinventorying.", mq.TLO.Cursor.ID())
-                    mq.cmd("/autoinventory")
-                    mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                    if trashIds[mq.TLO.Cursor.ID()] or mq.TLO.Cursor.NoRent() then
+                        utils.debugOutput("Destroying cleanup item: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", mq.TLO.Cursor.ID())
+                        mq.cmd("/destroy")
+                        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                    else
+                        utils.output("\ayPermanent item in bag (ID: %d) - autoinventorying.", mq.TLO.Cursor.ID())
+                        mq.cmd("/autoinventory")
+                        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                    end
                 end
             end
         end
     end
 
-    -- Destroy the bag itself last to free the top-level slot
+    -- Destroy the bag itself to free the top-level slot
+    if not trashIds[bagId] then
+        utils.output("\ayBag not listed in trash items - leaving in pack%d.", freeSlot)
+        return
+    end
+
     mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", freeSlot)
     mq.delay(1500, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
     if not mq.TLO.Cursor.ID() then

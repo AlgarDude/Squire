@@ -1345,7 +1345,7 @@ local function renderUI()
                             end
                         end
 
-                        if entry.method == "bag" then
+                        if entry.method == "bag" or entry.method == "cursor" then
                             imgui.Spacing()
                             imgui.Text("Items to Discard:")
                             local removeTrashIdx = nil
@@ -1711,7 +1711,8 @@ local function renderUI()
             imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
             imgui.BulletText(methods[1].label)
             imgui.Indent()
-            imgui.TextWrapped("Places an item on your cursor. Squire gives it to the pet.")
+            imgui.TextWrapped("Places an item on your cursor. Squire gives it to the pet. " ..
+                "Unwanted byproducts can be listed in \"Items to Discard\".")
             imgui.Unindent()
             imgui.Spacing()
             imgui.BulletText(methods[2].label)
@@ -1750,8 +1751,9 @@ local function renderUI()
                 "Put the summoned item on your cursor and click \"Add from Cursor\".")
             imgui.Spacing()
             imgui.TextWrapped(
-                "5. Bag method only: Anything that should be cleaned up afterwards (including the bag) " ..
-                "should be added to \"Items to Discard\".")
+                "5. Cursor or Bag methods: Anything that should be cleaned up afterwards should be " ..
+                "added to \"Items to Discard\". For bags, include the bag itself. " ..
+                "Any temporary items in a bag will be destroyed with it and do not need to be listed.")
             imgui.Unindent()
             imgui.PopStyleColor()
         end
