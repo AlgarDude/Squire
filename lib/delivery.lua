@@ -121,6 +121,7 @@ local function handleRejections(givenItemIds, itemCount)
 end
 
 local function placeCursorItemInGiveWindow(petSpawn)
+    if not targetPet(petSpawn) then return false end
     -- First item opens GiveWnd, subsequent items fill the next slot
     if not giveWnd.Open() then
         mq.cmd("/nomodkey /click left target")
@@ -218,10 +219,6 @@ end
 
 function delivery.deliverCursor(entry, petSpawn, abortFunc)
     utils.debugOutput(" deliverCursor: %s (%d items)", entry.name, #entry.items)
-    if not targetPet(petSpawn) then
-        utils.output("\arFailed to target pet for cursor delivery of %s.", entry.name)
-        return false
-    end
 
     -- Build item functions: each cast produces one item on cursor
     local itemFuncs = {}
@@ -230,6 +227,8 @@ function delivery.deliverCursor(entry, petSpawn, abortFunc)
             id = item.id,
             name = item.name,
             getItem = function()
+                mq.TLO.Me.DoTarget()
+                mq.delay(1500, function() return mq.TLO.Target.ID() == mq.TLO.Me.ID() end)
                 if not casting.useSource(entry, abortFunc) then
                     utils.output("\arFailed to use source: %s", entry.name)
                     return false
@@ -266,11 +265,11 @@ end
 function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc)
     utils.debugOutput(" deliverBag: %s (%d items, freeSlot=pack%d)", entry.name, #entry.items, freeSlot)
 
-    if entry.clicky then
-        -- Target self (clicky spells are single-target, not self-target)
-        mq.TLO.Me.DoTarget()
-        mq.delay(1500, function() return mq.TLO.Target.ID() == mq.TLO.Me.ID() end)
+    -- Target self for casting (pet gets re-targeted during give)
+    mq.TLO.Me.DoTarget()
+    mq.delay(1500, function() return mq.TLO.Target.ID() == mq.TLO.Me.ID() end)
 
+    if entry.clicky then
         -- Cast source to produce clicky item
         if not casting.useSource(entry, abortFunc) then
             utils.output("\arFailed to use source: %s", entry.name)
