@@ -7,6 +7,7 @@
 -- Example: clicky bag entry for reference (remove or replace with real data)
 -- local exampleSword = { id = 12345, name = "Summoned: Example Sword", icon = 592, }
 local quelliousPouch = { id = 57261, name = "Pouch of Quellious", icon = 667, }
+local phantomSatchel = { id = 17310, name = "Phantom Satchel", icon = 691, }
 
 return {
     {
@@ -83,6 +84,110 @@ return {
                     trashItems = {
                         quelliousPouch,
                     },
+                },
+                {
+                    name = "Grant Thassis's Armaments",
+                    type = "spell",
+                    method = "bag",
+                    clicky = true,
+                    clickyItem = { id = 99809, name = "Folded Pack of Thalassic Armaments", icon = 1931, },
+                    items = {
+                        { id = 99796, name = "Summoned: Thalassic Shortsword", icon = 4769, },
+                        { id = 99796, name = "Summoned: Thalassic Shortsword", icon = 4769, },
+                    },
+                    trashItems = {
+                        quelliousPouch,
+                    },
+                },
+                {
+                    name = "Grant Frightforged Armaments",
+                    type = "spell",
+                    method = "bag",
+                    clicky = true,
+                    clickyItem = { id = 76529, name = "Folded Pack of Frightforged Armaments", icon = 1931, },
+                    items = {
+                        { id = 76516, name = "Summoned: Frightforged Shortsword", icon = 4769, },
+                        { id = 76516, name = "Summoned: Frightforged Shortsword", icon = 4769, },
+                    },
+                    trashItems = {
+                        quelliousPouch,
+                    },
+                },
+                {
+                    name = "Grant Manaforged Armaments",
+                    type = "spell",
+                    method = "bag",
+                    clicky = true,
+                    clickyItem = { id = 64977, name = "Folded Pack of Manaforged Armaments", icon = 1931, },
+                    items = {
+                        { id = 64964, name = "Summoned: Manaforged Shortsword", icon = 4029, },
+                        { id = 64964, name = "Summoned: Manaforged Shortsword", icon = 4029, },
+                    },
+                    trashItems = {
+                        quelliousPouch,
+                    },
+                },
+                {
+                    name = "Grant Spectral Armaments",
+                    type = "spell",
+                    method = "bag",
+                    clicky = true,
+                    clickyItem = { id = 57295, name = "Folded Pack of Spectral Armaments", icon = 1930, },
+                    items = {
+                        { id = 57278, name = "Summoned: Spectral Shortsword", icon = 3546, },
+                        { id = 57278, name = "Summoned: Spectral Shortsword", icon = 3546, },
+                    },
+                    trashItems = {
+                        quelliousPouch,
+                    },
+                },
+                {
+                    name = "Summon Ethereal Armaments",
+                    type = "spell",
+                    method = "bag",
+                    items = {
+                        { id = 52833, name = "Summoned: Winterbane", icon = 1773, },
+                        { id = 52833, name = "Summoned: Winterbane", icon = 1773, },
+                    },
+                    trashItems = {
+                        quelliousPouch,
+                    },
+                },
+                {
+                    name = "Summon Prime Armaments",
+                    type = "spell",
+                    method = "bag",
+                    items = {
+                        { id = 52833, name = "Summoned: Winterbane", icon = 1773, },
+                        { id = 52833, name = "Summoned: Winterbane", icon = 1773, },
+                    },
+                    trashItems = {
+                        quelliousPouch,
+                    },
+                },
+                {
+                    name = "Summon Elemental Armaments",
+                    type = "spell",
+                    method = "bag",
+                    items = {
+                        { id = 52664, name = "Summoned: Icefall Icicle", icon = 1816, },
+                        { id = 52664, name = "Summoned: Icefall Icicle", icon = 1816, },
+                    },
+                    trashItems = {
+                        quelliousPouch,
+                    },
+                },
+                {
+                    name = "Summon Fang",
+                    type = "spell",
+                    method = "cursor",
+                    items = { { id = 7313, name = "Summoned: Snake Fang", icon = 801, }, },
+                },
+                {
+                    name = "Summon Dagger",
+                    type = "spell",
+                    method = "cursor",
+                    items = { { id = 7305, name = "Summoned: Dagger", icon = 592, }, },
                 },
             },
         },
