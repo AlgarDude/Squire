@@ -72,25 +72,3 @@ IMAGE_PLACEHOLDER_MAIN_WINDOW
 
 *Main window with status, controls, and arming history*
 
-&nbsp;
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `/squire arm <scope> [set]` | Arm pets (self/target/group/raid/PlayerName) |
-| `/squire stop` | Stop the current operation |
-| `/squire show` | Show the UI |
-| `/squire hide` | Hide the UI |
-| `/squire debug` | Toggle debug logging |
-| `/squire reset` | Reset after an inventory error |
-| `/squire help` | Show available commands |
-
-&nbsp;
-
-## Installation
-
-1. Place the `squire` folder in your MQ `lua` directory.
-2. In-game: `/lua run squire`
-3. Pick a set (or use a preset) and click an arm button. That's it.
-
