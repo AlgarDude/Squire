@@ -1,5 +1,5 @@
 <p align="center">
-<img width="384" height="384" alt="Squire" src="resources/squire.png" />
+<img width="300" height="300" alt="Squire" src="resources/squire.png" />
 </p>
 
 **Squire** is your personal pet armory attendant - a Lua script that takes the ***tedious targeting***, ***fumbling with bags*** and ***spell-gem juggling*** out of arming pets and replaces it with **ONE CLICK**.
