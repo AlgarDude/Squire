@@ -8,7 +8,7 @@
 
 **Arm your pet. Arm their pet. Arm <ins>everybody's</ins> pet.*****
 
-<sup>***** Or, set your keywords up and let other people do the work by sending you tells... it's all the same to us.</sup>
+<sup>***** Or, set your keywords up and make other people do the work by sending you tells... it's all the same to us.</sup>
 
 &nbsp;
 
@@ -19,7 +19,7 @@
 - Sources are ordered by priority, so Squire always picks the **best available** one in each category.
 - Categories are organized logically: Weapons, Armor, Heirlooms, Masks - each as its own group.
 
-<sup>* Presets currently avialable: Live/Test(MAG), EQ Might(MAG/ENC/NEC/BST)... with more to come (someone help me do laz plzkthx).</sup>
+<sup>* Presets currently available for Live/Test and EQ Might... with more to come (someone help me do laz plzkthx).</sup>
 
 IMAGE_PLACEHOLDER_PRESET_SELECTOR
 
@@ -27,15 +27,14 @@ IMAGE_PLACEHOLDER_PRESET_SELECTOR
 
 &nbsp;
 
-## Custom Sets for the Control Freaks
+## Custom Sets for Control Freaks
 
 Not using a preset class? Want a specific loadout? Squire's set editor lets you build exactly what you want.
 
-- Create custom sets with any combination of **spells, items, or AAa** as sources.
-- Four delivery methods: **Direct to Pet**, **Cursor**, **Bag**, and **Trade** - cover nearly every summoning style in the game.
+- Create custom sets with any combination of **spells, items, or AAs** as sources.
+- Four delivery methods: **Direct to Pet**, **Summon to Cursor**, **Summon Bag**, and **Direct Trade** - these should cover nearly any way to arm a pet, including custom emu features.
 - Bag methods support folded packs if needed - summon the folded pack, place it, click it, unpack it, hand it all over.
-- Toggle sources on or off without removing them.
-- Reorder sources to set your own priority.
+- Toggle sources on or off temporarily, or reorder them as needed. Copy sets to edit and customize.
 
 IMAGE_PLACEHOLDER_EDIT_SETS
 
@@ -43,20 +42,7 @@ IMAGE_PLACEHOLDER_EDIT_SETS
 
 &nbsp;
 
-## One Pet or All of Them
-
-Arm one pet or arm them all - your choice.
-
-- Arm your own pet, your target's pet, or a specific player's pet by name.
-- Arm every pet in your group or raid at once.**
-- (Optional) Other players can request arming by sending you a tell with a trigger word of your choosing, and even request a specific set.
-- Multiple requests are queued and processed in order.
-
-<sup>** Squire will politely skip players who don't have a pet. It's not a monster.</sup>
-
-&nbsp;
-
-## Features for the Fastidious
+## The Basics, Done Well
 
 - **Navigation**: Optionally auto-navigate to out-of-range pets (toggle in settings).
 - **Inventory Safety**: Frees a top-level inventory slot for bag operations, cleans up after itself, and only deletes items you tell it to.
