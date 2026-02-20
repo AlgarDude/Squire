@@ -29,6 +29,9 @@ function delivery.navToPet(petSpawn)
     if not delivery.navLoaded then return false end
     if not petSpawn() or not petSpawn.ID() then return false end
 
+    local nav = mq.TLO.Navigation
+    if not nav.MeshLoaded() then return false end
+
     if not startPosition then
         startPosition = {
             y = mq.TLO.Me.Y(),
@@ -41,9 +44,7 @@ function delivery.navToPet(petSpawn)
         utils.output("\ayPet is beyond leash range (100 units from start). Skipping.")
         return false
     end
-
-    local nav = mq.TLO.Navigation
-    local navCmd = string.format("id %d dist=15", petSpawn.ID())
+    local navCmd = string.format("id %d dist=10", petSpawn.ID())
     if not nav.PathExists(navCmd)() then
         utils.output("\ayNo nav path to pet. Skipping.")
         return false
@@ -72,6 +73,7 @@ function delivery.navToStart(allowMovement)
     if not delivery.navLoaded then return end
 
     local nav = mq.TLO.Navigation
+    if not nav.MeshLoaded() then return end
     local navCmd = string.format("locyxz %.2f %.2f %.2f", startPosition.y, startPosition.x, startPosition.z)
     if not nav.PathExists(navCmd)() then
         utils.output("\ayNo nav path back to start position.")

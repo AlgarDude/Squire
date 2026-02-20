@@ -59,19 +59,6 @@ function casting.memorizeSpell(gemSlot, spellName)
         return false
     end
 
-    -- Stand up while waiting for recovery
-    if me.Sitting() then
-        mq.cmd("/stand")
-        mq.delay(2000, function() return me.Standing() end)
-    end
-
-    -- Wait for spell to be ready
-    mq.delay(maxWait, function() return me.SpellReady(gemSlot)() end)
-    if not me.SpellReady(gemSlot)() then
-        utils.output("\arSpell %s not ready in time.", spellName)
-        return false
-    end
-
     utils.debugOutput("Memorized %s in gem %d.", spellName, gemSlot)
     return gemSlot
 end
@@ -111,6 +98,11 @@ function casting.prepareSpells(set)
         if result == nextGem then
             nextGem = nextGem - 1
         end
+    end
+
+    if me.Sitting() then
+        mq.cmd("/stand")
+        mq.delay(2000, function() return me.Standing() end)
     end
 
     return gemMap

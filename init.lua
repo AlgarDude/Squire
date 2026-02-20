@@ -1579,7 +1579,7 @@ local function renderUI()
         if not entry or isPresetSet(settings.selectedSet) or isArming then
             editingIdx = nil
         else
-            imgui.SetNextWindowSize(ImVec2(350, 180), ImGuiCond.FirstUseEver)
+            imgui.SetNextWindowSize(ImVec2(350, 205), ImGuiCond.FirstUseEver)
             local editOpen, editDraw = imgui.Begin("Edit Source###SquireEditSource", true)
             if not editOpen then
                 editingIdx = nil
