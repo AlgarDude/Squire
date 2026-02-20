@@ -6,18 +6,20 @@
 
 **"I WANT TO ARM AN ENTIRE RAID'S WORTH OF PETS AND I DON'T WANT CARPAL TUNNEL"** <sup>(we got you)</sup>
 
-**Arm your pet. Arm their pet. Arm <ins>everybody's</ins> pet.**
+**Arm your pet. Arm their pet. Arm <ins>everybody's</ins> pet.*****
+
+<sup>***** Or, set your keywords up and let other people do the work by sending you tells... it's all the same to us.</sup>
 
 &nbsp;
 
-## Presets Make Pet-Arming Painless
+## Painless Pet-Arming with Presets
 
 - Squire ships with **preconfigured class presets** so you can start arming pets immediately - no setup required.*
-- Presets are smart - they resolve what's actually available to your character and present only those options.
-- Presets are ordered by priority, so Squire always picks the **best available** source for each category.
-- Categories are organized logically: Weapons, Armor, Heirlooms, Masks - each as its own priority group.
+- Presets check what your character actually has and only show those options.
+- Sources are ordered by priority, so Squire always picks the **best available** one in each category.
+- Categories are organized logically: Weapons, Armor, Heirlooms, Masks - each as its own group.
 
-<sup>* Presets are currently available for Magician on Live/Test servers, with more to come!</sup>
+<sup>* Presets currently avialable: Live/Test(MAG), EQ Might(MAG/ENC/NEC/BST)... with more to come (someone help me do laz plzkthx).</sup>
 
 IMAGE_PLACEHOLDER_PRESET_SELECTOR
 
@@ -29,12 +31,11 @@ IMAGE_PLACEHOLDER_PRESET_SELECTOR
 
 Not using a preset class? Want a specific loadout? Squire's set editor lets you build exactly what you want.
 
-- Create custom sets with any combination of **spells, AAs, and items** as sources.
-- Four delivery methods: **Direct to Pet**, **Cursor**, **Bag**, and **Trade** - covering every summoning style in the game.
-- Bag method handles the entire clicky workflow automatically - summon the folded pack, place it, click it, unpack it, hand over the contents.
-- Toggle individual sources on or off without deleting them.
-- Reorder sources with drag controls to set your own priority.
-- Sets are saved per-character and persist across sessions.
+- Create custom sets with any combination of **spells, items, or AAa** as sources.
+- Four delivery methods: **Direct to Pet**, **Cursor**, **Bag**, and **Trade** - cover nearly every summoning style in the game.
+- Bag methods support folded packs if needed - summon the folded pack, place it, click it, unpack it, hand it all over.
+- Toggle sources on or off without removing them.
+- Reorder sources to set your own priority.
 
 IMAGE_PLACEHOLDER_EDIT_SETS
 
@@ -42,17 +43,14 @@ IMAGE_PLACEHOLDER_EDIT_SETS
 
 &nbsp;
 
-## Stupidly Simple Scoping
+## One Pet or All of Them
 
-Squire arms pets with surgical precision or reckless abandon - your choice.
+Arm one pet or arm them all - your choice.
 
-- `/squire arm self` - Arm your own pet.
-- `/squire arm target` - Arm your target's pet.
-- `/squire arm group` - Arm every pet in your group.
-- `/squire arm raid` - Arm every pet in the raid. Yes, all of them.**
-- `/squire arm PlayerName` - Arm a specific player's pet.
-- Accepts **tells** from other players - they can request arming with a trigger word.
-- Queues multiple requests and processes them in order.
+- Arm your own pet, your target's pet, or a specific player's pet by name.
+- Arm every pet in your group or raid at once.**
+- (Optional) Other players can request arming by sending you a tell with a trigger word of your choosing, and even request a specific set.
+- Multiple requests are queued and processed in order.
 
 <sup>** Squire will politely skip players who don't have a pet. It's not a monster.</sup>
 
@@ -61,12 +59,10 @@ Squire arms pets with surgical precision or reckless abandon - your choice.
 ## Features for the Fastidious
 
 - **Navigation**: Optionally auto-navigate to out-of-range pets (toggle in settings).
-- **Spell Management**: Automatically memorizes needed spells, restores your spell bar when done.
-- **Inventory Safety**: Frees a top-level inventory slot for bag operations, cleans up after itself.
-- **Tell Access Control**: Allow list, deny list, or open access for tell-triggered arming.
+- **Inventory Safety**: Frees a top-level inventory slot for bag operations, cleans up after itself, and only deletes items you tell it to.
+- **Tell Access Control**: Allow list, deny list, or open access for tell-triggered arming (Anyone, Group, Raid, Fellowship). You choose the keyword to use.
 - **Stop Anytime**: `/squire stop` halts the current operation immediately - mid-cast, mid-delivery, whenever.
-- **Debug Logging**: Toggle debug mode for detailed operation history.
-- **Arming History**: View recent results in the UI - who was armed, what succeeded, what failed.
+- **UI/CLI Integration**: Use the UI for convenience, but we have a full-featured command list that will get the job done.
 
 IMAGE_PLACEHOLDER_MAIN_WINDOW
 

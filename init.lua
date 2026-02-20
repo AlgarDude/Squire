@@ -45,11 +45,12 @@ local sources = {
 }
 
 local tellAccessOptions = {
-    { key = "anyone",    label = "Anyone", },
-    { key = "group",     label = "Group Only", },
-    { key = "raid",      label = "Raid Only", },
-    { key = "allowlist", label = "Allow List", },
-    { key = "denylist",  label = "Deny List", },
+    { key = "anyone",     label = "Anyone", },
+    { key = "group",      label = "Group Only", },
+    { key = "raid",       label = "Raid Only", },
+    { key = "fellowship", label = "Fellowship Only", },
+    { key = "allowlist",  label = "Allow List", },
+    { key = "denylist",   label = "Deny List", },
 }
 
 -- UI Temp State
@@ -492,6 +493,9 @@ local function isAllowedSender(senderName)
             end
         end
         return false
+    elseif settings.tellAccess == "fellowship" then
+        if me.Fellowship.ID() == 0 then return false end
+        return me.Fellowship.Member(senderName)()
     elseif settings.tellAccess == "allowlist" then
         for _, name in ipairs(settings.tellAllowlist or {}) do
             if name:lower() == senderName:lower() then
