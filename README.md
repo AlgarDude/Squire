@@ -21,7 +21,7 @@ Not feeling the OW? Set your keyword/tell requests up, and make them come to you
 
 <sup>* Presets currently available for Live/Test and EQ Might... with more to come (someone help me do laz plzkthx).</sup>
 
-IMAGE_PLACEHOLDER_PRESET_SELECTOR
+<img width="259" height="381" alt="image" src="https://github.com/user-attachments/assets/8d03a48d-62e2-4768-a303-8498b0ea7611" />
 
 *Set selector with resolved preset entries*
 
@@ -36,7 +36,7 @@ Not using a preset class? Want a specific loadout? Squire's set editor lets you 
 - Bag methods support folded packs if needed - Squire will summon the folded pack, place it, click it, unpack it, and hand it all over.
 - Toggle sources on or off temporarily, or reorder them as needed. Copy sets to edit and customize.
 
-IMAGE_PLACEHOLDER_EDIT_SETS
+<img width="259" height="356" alt="image" src="https://github.com/user-attachments/assets/0f2fc01e-5023-462a-8cee-e63600646492" />
 
 *The Edit Sets window - add, remove, reorder and toggle sources*
 
@@ -52,7 +52,12 @@ IMAGE_PLACEHOLDER_EDIT_SETS
 
 <sup>* Squire will clean up temp items left in temp bags you tell it to clean up.</sup>
 
-IMAGE_PLACEHOLDER_MAIN_WINDOW
+<img width="198" height="212" alt="image" src="https://github.com/user-attachments/assets/37c064b8-0769-42ed-9c19-445b118249eb" />
 
 *Main window with status, controls, and arming history*
+
+<img width="220" height="235" alt="image" src="https://github.com/user-attachments/assets/dde2e600-5d68-4dc4-9ff7-e8de6e1e17ff" />
+
+*Settings*
+
 
