@@ -6,17 +6,17 @@
 
 **"I WANT TO ARM AN ENTIRE RAID'S WORTH OF PETS AND I DON'T WANT CARPAL TUNNEL"** <sup>(we got you)</sup>
 
-**Arm your pet. Arm their pet. Arm <ins>everybody's</ins> pet.*****
+**You get pet toys!. You get pet toys!. <ins>Everybody</ins> gets pet toys!*****
 
-<sup>***** Or, set your keywords up and make other people do the work by sending you tells... it's all the same to us.</sup>
+Not feeling the OW? Set your keyword/tell requests up, and make them come to you... it's all the same to us.
 
 &nbsp;
 
 ## Painless Pet-Arming with Presets
 
 - Squire ships with **preconfigured class presets** so you can start arming pets immediately - no setup required.*
-- Presets check what your character actually has and only show those options.
-- Sources are ordered by priority, so Squire always picks the **best available** one in each category.
+- Presets check what you have and only show those sources.
+- Sources are ordered by priority, and Squire will pick the **best one available** in each category.
 - Categories are organized logically: Weapons, Armor, Heirlooms, Masks - each as its own group.
 
 <sup>* Presets currently available for Live/Test and EQ Might... with more to come (someone help me do laz plzkthx).</sup>
@@ -42,13 +42,15 @@ IMAGE_PLACEHOLDER_EDIT_SETS
 
 &nbsp;
 
-## The Basics, Done Well
+## Flexible and Full-Featured 
 
 - **Navigation**: Optionally auto-navigate to out-of-range pets (toggle in settings).
-- **Inventory Safety**: Frees a top-level inventory slot for bag operations, cleans up after itself, and only deletes items you tell it to.
+- **Inventory Safety**: Frees a top-level inventory slot for bag operations, cleans up after itself, and only deletes items you tell it to.*
 - **Tell Access Control**: Allow list, deny list, or open access for tell-triggered arming (Anyone, Group, Raid, Fellowship). You choose the keyword to use.
 - **Stop Anytime**: `/squire stop` halts the current operation immediately - mid-cast, mid-delivery, whenever.
 - **UI/CLI Integration**: Use the UI for convenience, but we have a full-featured command list that will get the job done.
+
+<sup>* Squire will clean up temp items left in temp bags you tell it to clean up.</sup>
 
 IMAGE_PLACEHOLDER_MAIN_WINDOW
 
