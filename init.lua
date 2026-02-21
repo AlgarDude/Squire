@@ -12,7 +12,7 @@ local utils = require('squire.lib.utils')
 local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 
-local version = "0.9beta"
+local version = "0.9g"
 
 -- Module-Level State
 

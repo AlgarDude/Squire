@@ -10,6 +10,7 @@ local crystalBelt = { id = 77510, name = "Summoned: Crystal Belt", icon = 501, }
 local phantomSatchel = { id = 17310, name = "Phantom Satchel", icon = 691, }
 local marduMask = { id = 1348, name = "Summoned: Muzzle of Mardu", icon = 770, }
 local mowchaMask = { id = 46987, name = "Summoned: Muzzle of Mowcha", icon = 770, }
+local walnanBlade = { id = 28595, name = "Summoned: Blade of Walnan", icon = 1342, }
 
 return {
   {
@@ -189,6 +190,18 @@ return {
           type = "item",
           method = "cursor",
           items = { ixiblat, ixiblat, },
+        },
+        {
+          name = "Legendary Gloves of Bladecalling",
+          type = "item",
+          method = "cursor",
+          items = { walnanBlade, walnanBlade, },
+        },
+        {
+          name = "Blade of Walnan",
+          type = "spell",
+          method = "cursor",
+          items = { walnanBlade, walnanBlade, },
         },
         {
           name = "Summon Fang",
