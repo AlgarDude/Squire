@@ -50,7 +50,7 @@ Not using a preset class? Want a specific loadout? Squire's set editor lets you 
 - **Stop Anytime**: `/squire stop` halts the current operation immediately - mid-cast, mid-delivery, whenever.
 - **UI/CLI Integration**: Use the UI for convenience, but we have a full-featured command list that will get the job done.
 
-<sup>* Squire will clean up temp items left in temp bags you tell it to clean up.</sup>
+<sup>* If a bag is on your trash list, any temp items left inside it go too.</sup>
 
 <img width="198" height="212" alt="image" src="https://github.com/user-attachments/assets/37c064b8-0769-42ed-9c19-445b118249eb" />
 
