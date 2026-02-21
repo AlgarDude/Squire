@@ -4,8 +4,7 @@
 
 **Squire** is your personal pet armory attendant - a Lua script to take the tedium out of pet toys, on Live/Test or your favorite emu server.
 
-Spells, Clickies, AA, we do it.
-Arm yours, arm theirs, whatever, we do it.
+Spells, Clickies, AA, we do it. Arm yours, arm theirs, whatever... we do it.
 
 **"You get pet toys! You get pet toys! <ins>Everybody</ins> gets pet toys!"**
 
