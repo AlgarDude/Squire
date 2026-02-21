@@ -2,7 +2,7 @@
 <img width="300" height="300" alt="Squire" src="resources/squire.png" />
 </p>
 
-**Squire** is your personal pet armory attendant - a script to take the tedium out of pet toys. 
+**Squire** is your personal pet armory attendant - a script to take the tedium out of pet toys.
 
 Arm yours, arm theirs, whatever, we do it.
 
