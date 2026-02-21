@@ -246,6 +246,14 @@ local function armPet(playerName, setName, fromTell)
         return true
     end
 
+    if (petSpawn.CleanName() or ""):lower():find("familiar") then
+        utils.output("\ay%s pet is a familiar. Skipping.", petDisplayName(playerName))
+        if fromTell then
+            mq.cmdf("/tell %s Your pet appears to be a familiar.", playerName)
+        end
+        return true
+    end
+
     -- Range check
     if (petSpawn.Distance3D() or 999) > 20 then
         if settings.allowMovement then
@@ -254,6 +262,7 @@ local function armPet(playerName, setName, fromTell)
                 if fromTell then
                     mq.cmdf("/tell %s Your pet is out of range and I could not reach it.", playerName)
                 end
+                table.insert(armHistory, 1, { timestamp = os.date("%H:%M:%S"), playerName = playerName, skipReason = "Out of range", })
                 return true
             end
         else
@@ -261,6 +270,7 @@ local function armPet(playerName, setName, fromTell)
             if fromTell then
                 mq.cmdf("/tell %s Your pet is out of range.", playerName)
             end
+            table.insert(armHistory, 1, { timestamp = os.date("%H:%M:%S"), playerName = playerName, skipReason = "Out of range", })
             return true
         end
     end
@@ -884,7 +894,9 @@ local function renderUI()
             for _, histEntry in ipairs(armHistory) do
                 imgui.TextColored(0.4, 0.8, 0.4, 1, string.format("[%s]", histEntry.timestamp))
                 imgui.SameLine(0, 4)
-                if #histEntry.failed > 0 then
+                if histEntry.skipReason then
+                    imgui.TextWrapped(string.format("Skipped %s pet: %s", petDisplayName(histEntry.playerName), histEntry.skipReason))
+                elseif #histEntry.failed > 0 then
                     imgui.TextWrapped(string.format("Processed %d/%d sources for %s pet. (Set: %s) Failed: %s",
                         histEntry.passed, histEntry.total, petDisplayName(histEntry.playerName), histEntry.setName,
                         table.concat(histEntry.failed, ", ")))
@@ -993,7 +1005,7 @@ local function renderUI()
             end
 
             if not delivery.navLoaded then imgui.BeginDisabled() end
-            settings.allowMovement, changed = imgui.Checkbox("Allow Movement", settings.allowMovement)
+            settings.allowMovement, changed = imgui.Checkbox("Nav to Pets", settings.allowMovement)
             if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
                 if delivery.navLoaded then
                     imgui.SetTooltip("Allow this PC to move up to 100 feet to arm a pet. Will return to the original location when complete.")
