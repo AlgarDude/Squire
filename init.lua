@@ -802,6 +802,11 @@ local function renderUI()
         imgui.SameLine()
         if aborted then
             imgui.TextColored(1, 0, 0, 1, statusText)
+            imgui.SameLine()
+            if imgui.SmallButton("Reset") then
+                aborted = false
+                statusText = "Idle"
+            end
         elseif isArming then
             imgui.TextColored(1, 1, 0, 1, statusText)
         else
