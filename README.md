@@ -1,5 +1,5 @@
 <p align="center">
-<img width="300" height="300" alt="Squire" src="resources/squire.png" />
+<img width="300" height="300" alt="squire" src="https://github.com/user-attachments/assets/4261ec00-39f3-437d-96ab-1d57c757fd06" />
 </p>
 
 **Squire** is your personal pet armory attendant - a Lua script to take the tedium out of pet toys, on Live/Test or your favorite emu server.
