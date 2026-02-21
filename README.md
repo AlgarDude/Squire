@@ -2,9 +2,11 @@
 <img width="300" height="300" alt="Squire" src="resources/squire.png" />
 </p>
 
-**Squire** is your personal pet armory attendant - a script to take the tedium out of pet toys. Arm yours, arm theirs, whatever, we do it.
+**Squire** is your personal pet armory attendant - a script to take the tedium out of pet toys. 
 
-**You get pet toys! You get pet toys! <ins>Everybody</ins> gets pet toys!**
+Arm yours, arm theirs, whatever, we do it.
+
+**"You get pet toys! You get pet toys! <ins>Everybody</ins> gets pet toys!"**
 
 Not feeling the OW? Set your keyword/tell requests up, and make them come to you... it's all the same to us.
 
@@ -31,7 +33,7 @@ Not using a preset class? Want a specific loadout? Squire's set editor lets you 
 
 - Create custom sets with any combination of **spells, items, or AAs** as sources.
 - Four delivery methods: **Direct to Pet**, **Summon to Cursor**, **Summon Bag**, and **Direct Trade** - these should cover nearly any way to arm a pet, including custom emu features.
-- Bag methods support folded packs if needed - summon the folded pack, place it, click it, unpack it, hand it all over.
+- Bag methods support folded packs if needed - Squire will summon the folded pack, place it, click it, unpack it, and hand it all over.
 - Toggle sources on or off temporarily, or reorder them as needed. Copy sets to edit and customize.
 
 IMAGE_PLACEHOLDER_EDIT_SETS
@@ -42,8 +44,8 @@ IMAGE_PLACEHOLDER_EDIT_SETS
 
 ## Flexible and Full-Featured 
 
-- **Navigation**: Optionally auto-navigate to out-of-range pets (toggle in settings).
-- **Inventory Safety**: Frees a top-level inventory slot for bag operations, cleans up after itself, and only deletes items you tell it to.*
+- **Navigation**: Optionally auto-navigate to out-of-range pets (toggle in settings). Return to start when finished.
+- **Inventory Safety**: Frees a top-level inventory slot for bag operations (if safely able), cleans up after itself, and only deletes items you tell it to.*
 - **Tell Access Control**: Allow list, deny list, or open access for tell-triggered arming (Anyone, Group, Raid, Fellowship). You choose the keyword to use.
 - **Stop Anytime**: `/squire stop` halts the current operation immediately - mid-cast, mid-delivery, whenever.
 - **UI/CLI Integration**: Use the UI for convenience, but we have a full-featured command list that will get the job done.

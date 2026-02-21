@@ -12,6 +12,8 @@ local utils = require('squire.lib.utils')
 local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 
+local version = "0.9beta"
+
 -- Module-Level State
 
 local me = mq.TLO.Me
@@ -85,9 +87,6 @@ local function findIndex(tbl, key)
 end
 
 local function petDisplayName(playerName)
-    if playerName:lower() == "self" then
-        return me.Name() .. "'s"
-    end
     return playerName .. "'s"
 end
 
@@ -237,12 +236,7 @@ local function armPet(playerName, setName, fromTell)
     end
 
     -- 2. Find pet
-    local petSpawn
-    if playerName:lower() == "self" then
-        petSpawn = me.Pet
-    else
-        petSpawn = mq.TLO.Spawn("pc " .. playerName).Pet
-    end
+    local petSpawn = mq.TLO.Spawn("pc " .. playerName).Pet
 
     if not petSpawn() or not petSpawn.ID() or petSpawn.ID() == 0 then
         utils.output("\ay%s does not have a pet.", playerName)
@@ -541,7 +535,7 @@ commands = {
             local setName = joinArgs(args, 3)
 
             if scope == "self" then
-                addToQueue("self", setName, false)
+                addToQueue(me.Name(), setName, false)
             elseif scope == "target" then
                 local t = mq.TLO.Target
                 if not t() or t.Type() ~= "PC" then
@@ -843,7 +837,7 @@ local function renderUI()
         if isArming then imgui.BeginDisabled() end
         imgui.PushStyleVar(ImGuiStyleVar.FramePadding, 8, 6)
         if imgui.Button("My Pet") then
-            addToQueue("self", nil, false)
+            addToQueue(me.Name(), nil, false)
         end
         imgui.SameLine()
         if imgui.Button("Target's Pet") then
@@ -1058,7 +1052,7 @@ local function renderUI()
             imgui.SetWindowFontScale(1.0)
             imgui.SameLine(0, 4)
             imgui.SetCursorPosY(blockY + 17)
-            imgui.Text("v1.0 by")
+            imgui.Text("v" .. version .. " by")
             imgui.SameLine(0, 4)
             imgui.SetCursorPosY(blockY + 13)
             imgui.SetWindowFontScale(1.3)
