@@ -517,7 +517,7 @@ local function queuePetOwners(getMember, count, setName)
         local member = getMember(i)
         if member() and member.Name() then
             local memberSpawn = mq.TLO.Spawn("pc " .. member.Name())
-            if memberSpawn() and memberSpawn.Pet() and memberSpawn.Pet.ID() > 0 then
+            if memberSpawn() and memberSpawn.Pet.ID() > 0 then
                 addToQueue(member.Name(), setName, false)
             end
         end
@@ -1825,7 +1825,7 @@ mq.event('squireRequest', "#1# tells you, '#2#'", function(line, sender, message
     local trimmed = message:gsub("^%s+", ""):gsub("%s+$", "")
     local triggerLower = settings.triggerWord:lower()
 
-    if trimmed:lower():find(triggerLower, 1, true) ~= 1 then return end
+    if triggerLower == "" or trimmed:lower():find(triggerLower, 1, true) ~= 1 then return end
     if not isAllowedSender(sender) then return end
 
     local afterTrigger = trimmed:sub(#settings.triggerWord + 1):gsub("^%s+", ""):gsub("%s+$", "")
@@ -1841,7 +1841,21 @@ while mq.TLO.MacroQuest.GameState() == 'INGAME' do
         settings = utils.loadSettings()
         resolvePresets()
         if not getSet(settings.selectedSet) then
-            settings.selectedSet = next(settings.sets) or ""
+            -- Try auto-selecting a preset for the new class
+            local found = false
+            for presetName, classes in pairs(presetClassMap) do
+                for _, class in ipairs(classes) do
+                    if class == myClass then
+                        settings.selectedSet = presetName
+                        found = true
+                        break
+                    end
+                end
+                if found then break end
+            end
+            if not found then
+                settings.selectedSet = next(settings.sets) or ""
+            end
         end
         settingsDirty = true
     end
