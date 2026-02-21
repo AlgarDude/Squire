@@ -205,8 +205,8 @@ function utils.freeTopSlot()
 
     utils.debugOutput("freeTopSlot: moving pack%d -> pack%d slot %d", sourceSlot, destPack, destSubSlot)
 
-    -- Pick up the item from the source slot
-    mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", sourceSlot)
+    -- Pick up the item from the source slot (shiftkey grabs the full stack)
+    mq.cmdf("/nomodkey /shiftkey /itemnotify pack%d leftmouseup", sourceSlot)
     mq.delay(3000, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
     if not mq.TLO.Cursor.ID() then
         utils.output("\arFailed to pick up item from pack%d.", sourceSlot)
