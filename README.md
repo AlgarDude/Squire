@@ -16,8 +16,7 @@ Not feeling the OW? Set your keyword/tell requests up, and make them come to you
 
 - Squire ships with **preconfigured class presets** so you can start arming pets immediately - no setup required.*
 - Presets check what you have and only show those sources.
-- Sources are ordered by priority, and Squire will pick the **best one available** in each category.
-- Categories are organized logically: Weapons, Armor, Heirlooms, Masks - each as its own group.
+- Sources are ordered by priority, and Squire will pick the **best one available** in each category (Weapons, Armor, Heirlooms, etc).
 
 <sup>* Presets currently available for Live/Test and EQ Might... with more to come (someone help me do laz plzkthx).</sup>
 
@@ -31,7 +30,7 @@ Not feeling the OW? Set your keyword/tell requests up, and make them come to you
 
 Not using a preset class? Want a specific loadout? Squire's set editor lets you build exactly what you want.
 
-- Create custom sets with any combination of **spells, items, or AAs** as sources.
+- Create custom sets with any combination of **spells, items, or AA** as sources.
 - Four delivery methods: **Direct to Pet**, **Summon to Cursor**, **Summon Bag**, and **Direct Trade** - these should cover nearly any way to arm a pet, including custom emu features.
 - Bag methods support folded packs if needed - Squire will summon the folded pack, place it, click it, unpack it, and hand it all over.
 - Toggle sources on or off temporarily, or reorder them as needed. Copy sets to edit and customize.
