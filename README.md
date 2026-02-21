@@ -2,11 +2,8 @@
 <img width="300" height="300" alt="Squire" src="resources/squire.png" />
 </p>
 
-**Squire** is your personal pet armory attendant - a Lua script that takes the ***tedious targeting***, ***fumbling with bags*** and ***spell-gem juggling*** out of arming pets and replaces it with **ONE CLICK**.
-
-**"I WANT TO ARM AN ENTIRE RAID'S WORTH OF PETS AND I DON'T WANT CARPAL TUNNEL"** <sup>(we got you)</sup>
-
-**You get pet toys!. You get pet toys!. <ins>Everybody</ins> gets pet toys!*****
+**Squire** is your personal pet armory attendant - a script to take the tedium out of pet toys. Arm yours, arm theirs, whatever, we do it.
+**You get pet toys! You get pet toys! <ins>Everybody</ins> gets pet toys!*****
 
 Not feeling the OW? Set your keyword/tell requests up, and make them come to you... it's all the same to us.
 
