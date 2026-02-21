@@ -3,6 +3,7 @@
 </p>
 
 **Squire** is your personal pet armory attendant - a script to take the tedium out of pet toys. Arm yours, arm theirs, whatever, we do it.
+
 **You get pet toys! You get pet toys! <ins>Everybody</ins> gets pet toys!*****
 
 Not feeling the OW? Set your keyword/tell requests up, and make them come to you... it's all the same to us.
