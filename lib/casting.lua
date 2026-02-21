@@ -124,18 +124,25 @@ function casting.waitForCastComplete(abortFunc)
     fizzled = false
 
     -- Wait for casting to start (up to 1s)
-    mq.delay(1000, function()
+    local startWait = 1000
+    while startWait > 0 do
         mq.doevents('squireFizzle')
-        return me.Casting() ~= nil or fizzled
-    end)
+        if me.Casting() ~= nil or fizzled then break end
+        mq.delay(100)
+        startWait = startWait - 100
+    end
 
     if fizzled then return end
 
     -- Wait for casting to finish
-    utils.waitFor(function()
+    local castWait = 30000
+    while castWait > 0 do
         mq.doevents('squireFizzle')
-        return fizzled or not me.Casting()
-    end, 30000, 100, abortFunc)
+        if fizzled or not me.Casting() then break end
+        if abortFunc and abortFunc() then break end
+        mq.delay(100)
+        castWait = castWait - 100
+    end
 end
 
 function casting.useSource(entry, abortFunc)

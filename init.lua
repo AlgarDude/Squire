@@ -223,7 +223,7 @@ local function armPet(playerName, setName, fromTell)
         return false
     end
 
-    -- 1. Resolve set
+    -- Resolve set
     setName = setName or settings.selectedSet
     local set = getSet(setName)
 
@@ -235,7 +235,7 @@ local function armPet(playerName, setName, fromTell)
         return true
     end
 
-    -- 2. Find pet
+    -- Find pet
     local petSpawn = mq.TLO.Spawn("pc " .. playerName).Pet
 
     if not petSpawn() or not petSpawn.ID() or petSpawn.ID() == 0 then
@@ -246,7 +246,7 @@ local function armPet(playerName, setName, fromTell)
         return true
     end
 
-    -- 4. Range check
+    -- Range check
     if (petSpawn.Distance3D() or 999) > 20 then
         if settings.allowMovement then
             if not delivery.navToPet(petSpawn) then
@@ -265,7 +265,7 @@ local function armPet(playerName, setName, fromTell)
         end
     end
 
-    -- 5. Clear cursor
+    -- Clear cursor
     local hasBagMethod = false
     for _, entry in ipairs(set) do
         if entry.enabled and entry.method == "bag" then
@@ -279,7 +279,7 @@ local function armPet(playerName, setName, fromTell)
         return false
     end
 
-    -- 6. Free top slot for bag methods
+    -- Free top slot for bag methods
     local freeSlot
     if hasBagMethod then
         freeSlot = utils.ensureFreeTopSlot()
@@ -289,13 +289,13 @@ local function armPet(playerName, setName, fromTell)
         end
     end
 
-    -- 7. Prepare spells
+    -- Prepare spells
     if not casting.prepareSpells(set) then
         utils.output("\arFailed to prepare spells for set '%s'.", setName)
         return false
     end
 
-    -- 8. Execute delivery for each enabled source entry in order
+    -- Execute delivery for each enabled source entry in order
     local results = {}
     local abortFunc = function() return stopRequested end
 
@@ -342,7 +342,7 @@ local function armPet(playerName, setName, fromTell)
         end
     end
 
-    -- 9. Report result
+    -- Report result
     local total, passed, failed = 0, 0, {}
     for i, entry in ipairs(set) do
         if entry.enabled and results[i] ~= nil then
@@ -489,7 +489,8 @@ local function isAllowedSender(senderName)
         return false
     elseif settings.tellAccess == "fellowship" then
         if me.Fellowship.ID() == 0 then return false end
-        return me.Fellowship.Member(senderName)()
+        local member = me.Fellowship.Member(senderName)
+        return member() ~= nil
     elseif settings.tellAccess == "allowlist" then
         for _, name in ipairs(settings.tellAllowlist or {}) do
             if name:lower() == senderName:lower() then
@@ -752,7 +753,7 @@ local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, head
         end
 
         imgui.SameLine()
-        if imgui.SmallButton(icons.FA_PENCIL) then
+        if imgui.SmallButton(icons.FA_PENCIL) and preRender then
             editingIdx = idx
             editSourceType = entry.type
             editSourceName = entry.name
@@ -1578,7 +1579,7 @@ local function renderUI()
             editingIdx = nil
         else
             imgui.SetNextWindowSize(ImVec2(350, 205), ImGuiCond.FirstUseEver)
-            local editOpen, editDraw = imgui.Begin("Edit Source###SquireEditSource", true)
+            local editOpen, editDraw = imgui.Begin("Edit Source###SquireEditSource", editingIdx ~= nil)
             if not editOpen then
                 editingIdx = nil
             end
@@ -1835,7 +1836,7 @@ while mq.TLO.MacroQuest.GameState() == 'INGAME' do
     mq.doevents()
 
     -- Detect persona class change
-    if me.Class.ShortName() ~= myClass then
+    if not isArming and me.Class.ShortName() ~= myClass then
         myClass = me.Class.ShortName()
         settings = utils.loadSettings()
         resolvePresets()

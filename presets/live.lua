@@ -197,7 +197,7 @@ return {
                     type = "spell",
                     method = "bag",
                     clicky = true,
-                    clickyItem = { id = 177689, name = "Folded Pack of Arcane Plate", icon = 12575, },
+                    clickyItem = { id = 177673, name = "Folded Pack of Arcane Plate", icon = 12575, },
                     items = {
                         { id = 177674, name = "Summoned: Arcane Plate Helm",        icon = 12562, },
                         { id = 177675, name = "Summoned: Arcane Plate Vambraces",   icon = 12564, },
