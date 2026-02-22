@@ -24,7 +24,7 @@ jobs:
           VERSION: "${{ github.ref_name }}"
         run: |
           PREV=$(git describe --tags --abbrev=0 "${VERSION}^" 2>/dev/null || echo "")
-          git log --no-merges --pretty=format:"- [%s](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/%H)%n%b" ${PREV:+$PREV..}${VERSION} > rg_release_notes.md
+          git log --no-merges --pretty=format:"- [%s](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/%H)%n%n%b%n%n~ %an" ${PREV:+$PREV..}${VERSION} > rg_release_notes.md
 
       - name: Publish to RedGuides
         uses: RedGuides/redguides-publish@v1
