@@ -229,7 +229,7 @@ local function armPet(playerName, setName, fromTell)
 
     if not set then
         utils.output("\arSet '%s' not found.", setName)
-        if fromTell then
+        if fromTell and settings.tellReplies then
             mq.cmdf('/tell %s Set "%s" not found.', playerName, setName)
         end
         return true
@@ -240,7 +240,7 @@ local function armPet(playerName, setName, fromTell)
 
     if not petSpawn() or not petSpawn.ID() or petSpawn.ID() == 0 then
         utils.output("\ay%s does not have a pet.", playerName)
-        if fromTell then
+        if fromTell and settings.tellReplies then
             mq.cmdf("/tell %s You do not appear to have a pet.", playerName)
         end
         return true
@@ -248,7 +248,7 @@ local function armPet(playerName, setName, fromTell)
 
     if (petSpawn.CleanName() or ""):lower():find("familiar") then
         utils.output("\ay%s pet is a familiar. Skipping.", petDisplayName(playerName))
-        if fromTell then
+        if fromTell and settings.tellReplies then
             mq.cmdf("/tell %s Your pet appears to be a familiar.", playerName)
         end
         return true
@@ -259,7 +259,7 @@ local function armPet(playerName, setName, fromTell)
         if settings.allowMovement then
             if not delivery.navToPet(petSpawn) then
                 utils.output("\ayCould not reach %s pet. Skipping.", petDisplayName(playerName))
-                if fromTell then
+                if fromTell and settings.tellReplies then
                     mq.cmdf("/tell %s Your pet is out of range and I could not reach it.", playerName)
                 end
                 table.insert(armHistory, 1, { timestamp = os.date("%H:%M:%S"), playerName = playerName, skipReason = "Out of range", })
@@ -267,7 +267,7 @@ local function armPet(playerName, setName, fromTell)
             end
         else
             utils.output("\ay%s pet is out of range (%.0f). Skipping.", petDisplayName(playerName), petSpawn.Distance3D() or 999)
-            if fromTell then
+            if fromTell and settings.tellReplies then
                 mq.cmdf("/tell %s Your pet is out of range.", playerName)
             end
             table.insert(armHistory, 1, { timestamp = os.date("%H:%M:%S"), playerName = playerName, skipReason = "Out of range", })
@@ -383,7 +383,7 @@ local function armPet(playerName, setName, fromTell)
         utils.debugOutput("Processed %d/%d sources for %s pet. (Set: %s)", passed, total, petDisplayName(playerName), setName)
     end
 
-    if fromTell then
+    if fromTell and settings.tellReplies then
         if #failed > 0 then
             mq.cmdf("/tell %s Processed %d/%d sources for your pet. Failed: %s", playerName, passed, total, table.concat(failed, ", "))
         else
@@ -410,6 +410,10 @@ local function addToQueue(playerName, setName, fromTell)
         setName = setName,
         fromTell = fromTell or false,
     })
+
+    if fromTell and settings.tellReplies then
+        mq.cmdf('/tell %s You have been added to the queue.', playerName)
+    end
 end
 
 local function saveCurrentGems()
@@ -961,6 +965,13 @@ local function renderUI()
                 end
                 imgui.EndCombo()
             end
+
+            imgui.SameLine()
+            settings.tellReplies, changed = imgui.Checkbox("Tell Replies", settings.tellReplies)
+            if imgui.IsItemHovered() then
+                imgui.SetTooltip("Send tell replies to players who request arming via tell (queued, errors, completion).")
+            end
+            if changed then settingsDirty = true end
 
             if settings.tellAccess == "allowlist" then
                 imgui.Text("Allow List:")

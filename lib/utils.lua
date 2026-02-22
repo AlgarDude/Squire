@@ -65,11 +65,12 @@ end
 local function defaultSettings()
     return {
         debugMode = false,
-        triggerWord = "arm",
+        triggerWord = "hit me bb",
         selectedSet = "",
         tellAccess = "allowlist",
         tellAllowlist = {},
         tellDenylist = {},
+        tellReplies = true,
         allowMovement = false,
         sets = {},
     }
