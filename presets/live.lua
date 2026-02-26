@@ -151,7 +151,7 @@ return {
                         { id = 52833, name = "Summoned: Winterbane", icon = 1773, },
                     },
                     trashItems = {
-                        quelliousPouch,
+                        phantomSatchel,
                     },
                 },
                 {
@@ -159,11 +159,11 @@ return {
                     type = "spell",
                     method = "bag",
                     items = {
-                        { id = 52833, name = "Summoned: Winterbane", icon = 1773, },
-                        { id = 52833, name = "Summoned: Winterbane", icon = 1773, },
+                        { id = 52725, name = "Summoned: Winterbane", icon = 1773, },
+                        { id = 52725, name = "Summoned: Winterbane", icon = 1773, },
                     },
                     trashItems = {
-                        quelliousPouch,
+                        phantomSatchel,
                     },
                 },
                 {
@@ -175,7 +175,7 @@ return {
                         { id = 52664, name = "Summoned: Icefall Icicle", icon = 1816, },
                     },
                     trashItems = {
-                        quelliousPouch,
+                        phantomSatchel,
                     },
                 },
                 {

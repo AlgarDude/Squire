@@ -12,7 +12,7 @@ local utils = require('squire.lib.utils')
 local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 
-local version = "0.9g"
+local version = "0.9j"
 
 -- Module-Level State
 
@@ -526,8 +526,8 @@ end
 
 -- Command System
 
-local function queuePetOwners(getMember, count, setName)
-    for i = 1, count do
+local function queuePetOwners(getMember, startIndex, count, setName)
+    for i = startIndex, count do
         local member = getMember(i)
         if member() and member.Name() then
             local memberSpawn = mq.TLO.Spawn("pc " .. member.Name())
@@ -561,9 +561,9 @@ commands = {
                     addToQueue(t.Name(), setName, false)
                 end
             elseif scope == "group" then
-                queuePetOwners(mq.TLO.Group.Member, (mq.TLO.Group.GroupSize() or 1) - 1, setName)
+                queuePetOwners(mq.TLO.Group.Member, 0, (mq.TLO.Group.GroupSize() or 1) - 1, setName)
             elseif scope == "raid" then
-                queuePetOwners(mq.TLO.Raid.Member, mq.TLO.Raid.Members() or 0, setName)
+                queuePetOwners(mq.TLO.Raid.Member, 1, mq.TLO.Raid.Members() or 0, setName)
             elseif scope ~= "" then
                 addToQueue(args[2], setName, false)
             else
