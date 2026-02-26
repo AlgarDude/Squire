@@ -246,7 +246,7 @@ local function armPet(playerName, setName, fromTell)
         return true
     end
 
-    if (petSpawn.CleanName() or ""):lower():find("familiar") then
+    if (petSpawn.DisplayName() or ""):lower():find("familiar") then
         utils.output("\ay%s pet is a familiar. Skipping.", petDisplayName(playerName))
         if fromTell and settings.tellReplies then
             mq.cmdf("/tell %s Your pet appears to be a familiar.", playerName)
@@ -488,7 +488,7 @@ local function isAllowedSender(senderName)
     elseif settings.tellAccess == "group" then
         for i = 1, 5 do
             local member = mq.TLO.Group.Member(i)
-            if member() and member.Name():lower() == senderName:lower() then
+            if member() and member.DisplayName():lower() == senderName:lower() then
                 return true
             end
         end
@@ -496,7 +496,7 @@ local function isAllowedSender(senderName)
     elseif settings.tellAccess == "raid" then
         for i = 1, mq.TLO.Raid.Members() or 0 do
             local member = mq.TLO.Raid.Member(i)
-            if member() and member.Name():lower() == senderName:lower() then
+            if member() and member.DisplayName():lower() == senderName:lower() then
                 return true
             end
         end
@@ -529,11 +529,8 @@ end
 local function queuePetOwners(getMember, startIndex, count, setName)
     for i = startIndex, count do
         local member = getMember(i)
-        if member() and member.Name() then
-            local memberSpawn = mq.TLO.Spawn("pc " .. member.Name())
-            if memberSpawn() and memberSpawn.Pet.ID() > 0 then
-                addToQueue(member.Name(), setName, false)
-            end
+        if member() and member.Pet.ID() > 0 then
+            addToQueue(member.DisplayName(), setName, false)
         end
     end
 end
@@ -550,15 +547,15 @@ commands = {
             local setName = joinArgs(args, 3)
 
             if scope == "self" then
-                addToQueue(me.Name(), setName, false)
+                addToQueue(me.DisplayName(), setName, false)
             elseif scope == "target" then
                 local t = mq.TLO.Target
                 if not t() or t.Type() ~= "PC" then
                     utils.output("\ayTarget is not a PC.")
                 elseif not t.Pet() or t.Pet.ID() == 0 then
-                    utils.output("\ay%s does not have a pet.", t.Name())
+                    utils.output("\ay%s does not have a pet.", t.DisplayName())
                 else
-                    addToQueue(t.Name(), setName, false)
+                    addToQueue(t.DisplayName(), setName, false)
                 end
             elseif scope == "group" then
                 queuePetOwners(mq.TLO.Group.Member, 0, (mq.TLO.Group.GroupSize() or 1) - 1, setName)
@@ -857,7 +854,7 @@ local function renderUI()
         if isArming then imgui.BeginDisabled() end
         imgui.PushStyleVar(ImGuiStyleVar.FramePadding, 8, 6)
         if imgui.Button("My Pet") then
-            addToQueue(me.Name(), nil, false)
+            addToQueue(me.DisplayName(), nil, false)
         end
         imgui.SameLine()
         if imgui.Button("Target's Pet") then
