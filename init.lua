@@ -12,7 +12,7 @@ local utils = require('squire.lib.utils')
 local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 
-local version = "0.9j"
+local version = "0.9k"
 
 -- Module-Level State
 
@@ -47,6 +47,7 @@ local sources = {
 }
 
 local tellAccessOptions = {
+    { key = "disabled",   label = "Disabled", },
     { key = "anyone",     label = "Anyone", },
     { key = "group",      label = "Group Only", },
     { key = "raid",       label = "Raid Only", },
@@ -482,6 +483,9 @@ end
 
 -- Access Check
 
+local registerTellEvent
+local unregisterTellEvent
+
 local function isAllowedSender(senderName)
     if settings.tellAccess == "anyone" then
         return true
@@ -535,7 +539,7 @@ local function queuePetOwners(getMember, startIndex, count, setName)
     end
 end
 
-local commandOrder = { "arm", "stop", "show", "hide", "debug", "reset", "help", }
+local commandOrder = { "arm", "stop", "show", "hide", "debug", "tellaccess", "reset", "help", }
 
 local commands
 commands = {
@@ -610,6 +614,37 @@ commands = {
                 settingsDirty = true
                 utils.output("Debug mode: %s", utils.debugMode and "ON" or "OFF")
             end
+        end,
+    },
+    tellaccess = {
+        usage = "/squire tellaccess [mode]",
+        about = "Set tell access mode (disabled, anyone, group, raid, fellowship, allowlist, denylist)",
+        handler = function(args)
+            local mode = args[2] and args[2]:lower() or ""
+            if mode == "" then
+                local current = findIndex(tellAccessOptions, settings.tellAccess)
+                local keys = {}
+                for _, opt in ipairs(tellAccessOptions) do table.insert(keys, opt.key) end
+                utils.output("Tell access: %s (%s)", tellAccessOptions[current].label, table.concat(keys, ", "))
+                return
+            end
+            for _, opt in ipairs(tellAccessOptions) do
+                if opt.key == mode then
+                    local wasDisabled = settings.tellAccess == "disabled"
+                    settings.tellAccess = opt.key
+                    settingsDirty = true
+                    if opt.key == "disabled" then
+                        unregisterTellEvent()
+                    elseif wasDisabled then
+                        registerTellEvent()
+                    end
+                    utils.output("Tell access set to: %s", opt.label)
+                    return
+                end
+            end
+            local keys = {}
+            for _, opt in ipairs(tellAccessOptions) do table.insert(keys, opt.key) end
+            utils.output("Unknown mode. Options: %s", table.concat(keys, ", "))
         end,
     },
     reset = {
@@ -956,8 +991,14 @@ local function renderUI()
             if imgui.BeginCombo("##tellAccess", tellAccessOptions[taIndex].label) then
                 for _, opt in ipairs(tellAccessOptions) do
                     if imgui.Selectable(opt.label, opt.key == settings.tellAccess) then
+                        local wasDisabled = settings.tellAccess == "disabled"
                         settings.tellAccess = opt.key
                         settingsDirty = true
+                        if opt.key == "disabled" then
+                            unregisterTellEvent()
+                        elseif wasDisabled then
+                            registerTellEvent()
+                        end
                     end
                 end
                 imgui.EndCombo()
@@ -1845,17 +1886,27 @@ startup()
 
 mq.imgui.init('Squire', renderUI)
 mq.bind('/squire', commandHandler)
-mq.event('squireRequest', "#1# tells you, '#2#'", function(line, sender, message)
-    if not message then return end
-    local trimmed = message:gsub("^%s+", ""):gsub("%s+$", "")
-    local triggerLower = settings.triggerWord:lower()
+registerTellEvent = function()
+    mq.event('squireRequest', "#1# tells you, '#2#'", function(line, sender, message)
+        if not message then return end
+        local trimmed = message:gsub("^%s+", ""):gsub("%s+$", "")
+        local triggerLower = settings.triggerWord:lower()
 
-    if triggerLower == "" or trimmed:lower():find(triggerLower, 1, true) ~= 1 then return end
-    if not isAllowedSender(sender) then return end
+        if triggerLower == "" or trimmed:lower():find(triggerLower, 1, true) ~= 1 then return end
+        if not isAllowedSender(sender) then return end
 
-    local afterTrigger = trimmed:sub(#settings.triggerWord + 1):gsub("^%s+", ""):gsub("%s+$", "")
-    addToQueue(sender, afterTrigger ~= "" and afterTrigger or nil, true)
-end)
+        local afterTrigger = trimmed:sub(#settings.triggerWord + 1):gsub("^%s+", ""):gsub("%s+$", "")
+        addToQueue(sender, afterTrigger ~= "" and afterTrigger or nil, true)
+    end)
+end
+
+unregisterTellEvent = function()
+    mq.unevent('squireRequest')
+end
+
+if settings.tellAccess ~= "disabled" then
+    registerTellEvent()
+end
 
 while mq.TLO.MacroQuest.GameState() == 'INGAME' do
     mq.doevents()

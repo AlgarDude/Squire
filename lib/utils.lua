@@ -67,7 +67,7 @@ local function defaultSettings()
         debugMode = false,
         triggerWord = "hit me bb",
         selectedSet = "",
-        tellAccess = "allowlist",
+        tellAccess = "disabled",
         tellAllowlist = {},
         tellDenylist = {},
         tellReplies = true,
