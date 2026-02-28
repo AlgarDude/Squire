@@ -72,6 +72,8 @@ local function defaultSettings()
         tellDenylist = {},
         tellReplies = true,
         allowMovement = false,
+        preQueueCommand = "",
+        postQueueCommand = "",
         sets = {},
     }
 end

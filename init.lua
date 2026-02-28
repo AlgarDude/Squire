@@ -12,7 +12,7 @@ local utils = require('squire.lib.utils')
 local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 
-local version = "0.9k"
+local version = "0.9l"
 
 -- Module-Level State
 
@@ -433,6 +433,11 @@ local function processQueue()
     end
 
     isArming = true
+
+    if settings.preQueueCommand ~= "" then
+        mq.cmdf("%s", settings.preQueueCommand)
+    end
+
     local processed = 0
 
     while #queue > 0 do
@@ -475,6 +480,10 @@ local function processQueue()
 
     delivery.navToStart(settings.allowMovement)
     delivery.clearStartPosition()
+
+    if settings.postQueueCommand ~= "" then
+        mq.cmdf("%s", settings.postQueueCommand)
+    end
 
     isArming = false
     stopRequested = false
@@ -967,12 +976,7 @@ local function renderUI()
             renderWindowBg()
             local changed
 
-            imgui.Text("Trigger Word:")
-            if imgui.IsItemHovered() then
-                imgui.SetTooltip("If you receive a tell with this keyword, you will arm the sender's pet.")
-            end
-            imgui.SameLine()
-            imgui.SetNextItemWidth(150)
+            imgui.SetNextItemWidth(200)
             local tw
             tw, changed = imgui.InputTextWithHint("##triggerWord", "e.g. squire", settings.triggerWord)
             if imgui.IsItemHovered() then
@@ -983,11 +987,14 @@ local function renderUI()
                 settings.triggerWord = tw
                 settingsDirty = true
             end
+            imgui.SameLine()
+            imgui.Text("Trigger Word")
+            if imgui.IsItemHovered() then
+                imgui.SetTooltip("If you receive a tell with this keyword, you will arm the sender's pet.")
+            end
 
             local taIndex = findIndex(tellAccessOptions, settings.tellAccess)
-            imgui.Text("Tell Access:")
-            imgui.SameLine()
-            imgui.SetNextItemWidth(150)
+            imgui.SetNextItemWidth(200)
             if imgui.BeginCombo("##tellAccess", tellAccessOptions[taIndex].label) then
                 for _, opt in ipairs(tellAccessOptions) do
                     if imgui.Selectable(opt.label, opt.key == settings.tellAccess) then
@@ -1003,22 +1010,18 @@ local function renderUI()
                 end
                 imgui.EndCombo()
             end
-
             imgui.SameLine()
+            imgui.Text("Tell Access")
+            imgui.SameLine(0, 30)
             settings.tellReplies, changed = imgui.Checkbox("Tell Replies", settings.tellReplies)
             if imgui.IsItemHovered() then
-                imgui.SetTooltip("Send tell replies to players who request arming via tell (queued, errors, completion).")
+                imgui.SetTooltip("Reply to players who request arming.")
             end
             if changed then settingsDirty = true end
 
             if settings.tellAccess == "allowlist" then
-                imgui.Text("Allow List:")
-                if imgui.IsItemHovered() then
-                    imgui.SetTooltip("If Allow List is selected, you will only react to keywords from the listed players.")
-                end
-                imgui.SameLine()
                 local alStr = table.concat(settings.tellAllowlist or {}, ", ")
-                imgui.SetNextItemWidth(250)
+                imgui.SetNextItemWidth(350)
                 alStr, changed = imgui.InputTextWithHint("##allowList", "Player1, Player2", alStr)
                 if changed then
                     settings.tellAllowlist = {}
@@ -1030,16 +1033,16 @@ local function renderUI()
                     end
                     settingsDirty = true
                 end
+                imgui.SameLine()
+                imgui.Text("Allow List")
+                if imgui.IsItemHovered() then
+                    imgui.SetTooltip("Only react to keywords from the listed players.")
+                end
             end
 
             if settings.tellAccess == "denylist" then
-                imgui.Text("Deny List:")
-                if imgui.IsItemHovered() then
-                    imgui.SetTooltip("If Deny List is selected, you will not react to keywords from the listed players.")
-                end
-                imgui.SameLine()
                 local dlStr = table.concat(settings.tellDenylist or {}, ", ")
-                imgui.SetNextItemWidth(250)
+                imgui.SetNextItemWidth(350)
                 dlStr, changed = imgui.InputTextWithHint("##denyList", "Player1, Player2", dlStr)
                 if changed then
                     settings.tellDenylist = {}
@@ -1051,6 +1054,37 @@ local function renderUI()
                     end
                     settingsDirty = true
                 end
+                imgui.SameLine()
+                imgui.Text("Deny List")
+                if imgui.IsItemHovered() then
+                    imgui.SetTooltip("Will not react to keywords from the listed players.")
+                end
+            end
+
+            imgui.SetNextItemWidth(200)
+            local pqc
+            pqc, changed = imgui.InputTextWithHint("##preQueueCmd", "/echo Arming started", settings.preQueueCommand)
+            if changed then
+                settings.preQueueCommand = pqc
+                settingsDirty = true
+            end
+            imgui.SameLine()
+            imgui.Text("Pre-Queue Command")
+            if imgui.IsItemHovered() then
+                imgui.SetTooltip("Execute this command before arming is started.")
+            end
+
+            imgui.SetNextItemWidth(200)
+            local poqc
+            poqc, changed = imgui.InputTextWithHint("##postQueueCmd", "/echo Arming complete", settings.postQueueCommand)
+            if changed then
+                settings.postQueueCommand = poqc
+                settingsDirty = true
+            end
+            imgui.SameLine()
+            imgui.Text("Post-Queue Command")
+            if imgui.IsItemHovered() then
+                imgui.SetTooltip("Execute this command once arming is complete (or aborted).")
             end
 
             if not delivery.navLoaded then imgui.BeginDisabled() end
@@ -1571,7 +1605,7 @@ local function renderUI()
                     imgui.Text("Item Name:")
                 end
                 imgui.SameLine()
-                imgui.SetNextItemWidth(250)
+                imgui.SetNextItemWidth(350)
                 newSourceName = imgui.InputTextWithHint("##newName", "Exact In-Game Name", newSourceName)
 
                 if newSourceMethod == "bag" then
@@ -1682,7 +1716,7 @@ local function renderUI()
                     imgui.Text("Item Name:")
                 end
                 imgui.SameLine()
-                imgui.SetNextItemWidth(250)
+                imgui.SetNextItemWidth(350)
                 editSourceName = imgui.InputTextWithHint("##editName", "Exact In-Game Name", editSourceName)
 
                 if editSourceMethod == "bag" then
