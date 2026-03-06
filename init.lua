@@ -542,7 +542,7 @@ end
 local function queuePetOwners(getMember, startIndex, count, setName)
     for i = startIndex, count do
         local member = getMember(i)
-        if member() and member.Pet.ID() > 0 then
+        if member() and (member.Pet.ID() or 0) > 0 then
             addToQueue(member.DisplayName(), setName, false)
         end
     end
