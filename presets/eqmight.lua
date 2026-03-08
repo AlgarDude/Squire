@@ -17,44 +17,6 @@ return {
     title = "Class Preset (EQM)",
     classes = { "ENC", "NEC", },
     effects = {
-      { -- Weapons
-        {
-          name = "Artifact of Toxic Edge",
-          type = "item",
-          method = "cursor",
-          items = { toxicEdge, toxicEdge, },
-        },
-        {
-          name = "Legendary Toxic Edge Earring",
-          type = "item",
-          method = "cursor",
-          items = { toxicEdge, toxicEdge, },
-        },
-        {
-          name = "Toxic Edge Earring",
-          type = "item",
-          method = "cursor",
-          items = { toxicEdge, toxicEdge, },
-        },
-        {
-          name = "Legendary Gloves of Strongboom",
-          type = "item",
-          method = "cursor",
-          items = { ixiblat, ixiblat, },
-        },
-        {
-          name = "Gloves of Strongboom",
-          type = "item",
-          method = "cursor",
-          items = { ixiblat, ixiblat, },
-        },
-        {
-          name = "Gloves of Ixiblat",
-          type = "item",
-          method = "cursor",
-          items = { ixiblat, ixiblat, },
-        },
-      },
       { -- Mask
         {
           name = "Mask of Mardu",
@@ -83,13 +45,25 @@ return {
           items = { crystalBelt, },
         },
       },
-    },
-  },
-  {
-    title = "Class Preset (EQM)",
-    classes = { "BST", },
-    effects = {
       { -- Weapons
+        {
+          name = "Artifact of Toxic Edge",
+          type = "item",
+          method = "cursor",
+          items = { toxicEdge, toxicEdge, },
+        },
+        {
+          name = "Legendary Toxic Edge Earring",
+          type = "item",
+          method = "cursor",
+          items = { toxicEdge, toxicEdge, },
+        },
+        {
+          name = "Toxic Edge Earring",
+          type = "item",
+          method = "cursor",
+          items = { toxicEdge, toxicEdge, },
+        },
         {
           name = "Legendary Gloves of Strongboom",
           type = "item",
@@ -109,6 +83,12 @@ return {
           items = { ixiblat, ixiblat, },
         },
       },
+    },
+  },
+  {
+    title = "Class Preset (EQM)",
+    classes = { "BST", },
+    effects = {
       { -- Mask
         {
           name = "Mask of Mardu",
@@ -131,48 +111,7 @@ return {
           items = { crystalBelt, },
         },
       },
-    },
-  },
-  {
-    title = "Class Preset (EQM)",
-    classes = { "MAG", },
-    effects = {
       { -- Weapons
-        {
-          name = "Artifact of Toxic Edge",
-          type = "item",
-          method = "cursor",
-          items = { toxicEdge, toxicEdge, },
-        },
-        {
-          name = "Legendary Toxic Edge Earring",
-          type = "item",
-          method = "cursor",
-          items = { toxicEdge, toxicEdge, },
-        },
-        {
-          name = "Toxic Edge Earring",
-          type = "item",
-          method = "cursor",
-          items = { toxicEdge, toxicEdge, },
-        },
-        {
-          name = "Artifact of Baat",
-          type = "item",
-          method = "cursor",
-          items = {
-            { id = 148864, name = "Summoned: Hand of Baat", icon = 2611, },
-            { id = 148864, name = "Summoned: Hand of Baat", icon = 2611, },
-          },
-        },
-        {
-          name = "Summon Dagger of the Deep",
-          type = "spell",
-          method = "cursor",
-          items = {
-            { id = 77509, name = "Summoned: Dagger of the Deep", icon = 1407, },
-          },
-        },
         {
           name = "Legendary Gloves of Strongboom",
           type = "item",
@@ -191,35 +130,13 @@ return {
           method = "cursor",
           items = { ixiblat, ixiblat, },
         },
-        {
-          name = "Legendary Gloves of Bladecalling",
-          type = "item",
-          method = "cursor",
-          items = { walnanBlade, walnanBlade, },
-        },
-        {
-          name = "Blade of Walnan",
-          type = "spell",
-          method = "cursor",
-          items = { walnanBlade, walnanBlade, },
-        },
-        {
-          name = "Summon Fang",
-          type = "spell",
-          method = "cursor",
-          items = {
-            { id = 7313, name = "Summoned: Snake Fang", icon = 801, },
-          },
-        },
-        {
-          name = "Summon Dagger",
-          type = "spell",
-          method = "cursor",
-          items = {
-            { id = 7305, name = "Summoned: Dagger", icon = 592, },
-          },
-        },
       },
+    },
+  },
+  {
+    title = "Class Preset (EQM)",
+    classes = { "MAG", },
+    effects = {
       { -- Armor
         {
           name = "Ancestral Girdle of the High Summoner",
@@ -343,6 +260,89 @@ return {
           method = "cursor",
           items = {
             { id = 28594, name = "Summoned: Belt of Magi`Kot", icon = 501, },
+          },
+        },
+      },
+      { -- Weapons
+        {
+          name = "Artifact of Toxic Edge",
+          type = "item",
+          method = "cursor",
+          items = { toxicEdge, toxicEdge, },
+        },
+        {
+          name = "Legendary Toxic Edge Earring",
+          type = "item",
+          method = "cursor",
+          items = { toxicEdge, toxicEdge, },
+        },
+        {
+          name = "Toxic Edge Earring",
+          type = "item",
+          method = "cursor",
+          items = { toxicEdge, toxicEdge, },
+        },
+        {
+          name = "Artifact of Baat",
+          type = "item",
+          method = "cursor",
+          items = {
+            { id = 148864, name = "Summoned: Hand of Baat", icon = 2611, },
+            { id = 148864, name = "Summoned: Hand of Baat", icon = 2611, },
+          },
+        },
+        {
+          name = "Summon Dagger of the Deep",
+          type = "spell",
+          method = "cursor",
+          items = {
+            { id = 77509, name = "Summoned: Dagger of the Deep", icon = 1407, },
+          },
+        },
+        {
+          name = "Legendary Gloves of Strongboom",
+          type = "item",
+          method = "cursor",
+          items = { ixiblat, ixiblat, },
+        },
+        {
+          name = "Gloves of Strongboom",
+          type = "item",
+          method = "cursor",
+          items = { ixiblat, ixiblat, },
+        },
+        {
+          name = "Gloves of Ixiblat",
+          type = "item",
+          method = "cursor",
+          items = { ixiblat, ixiblat, },
+        },
+        {
+          name = "Legendary Gloves of Bladecalling",
+          type = "item",
+          method = "cursor",
+          items = { walnanBlade, walnanBlade, },
+        },
+        {
+          name = "Blade of Walnan",
+          type = "spell",
+          method = "cursor",
+          items = { walnanBlade, walnanBlade, },
+        },
+        {
+          name = "Summon Fang",
+          type = "spell",
+          method = "cursor",
+          items = {
+            { id = 7313, name = "Summoned: Snake Fang", icon = 801, },
+          },
+        },
+        {
+          name = "Summon Dagger",
+          type = "spell",
+          method = "cursor",
+          items = {
+            { id = 7305, name = "Summoned: Dagger", icon = 592, },
           },
         },
       },

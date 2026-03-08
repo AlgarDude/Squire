@@ -17,7 +17,7 @@ end)
 
 -- Spell Memorization
 
-function casting.memorizeSpell(gemSlot, spellName)
+function casting.memorizeSpell(gemSlot, spellName, abortFunc)
     if not me.Book(spellName)() then
         utils.output("\ar%s is not in spellbook.", spellName)
         return false
@@ -31,7 +31,7 @@ function casting.memorizeSpell(gemSlot, spellName)
         end
     end
 
-    if me.CombatState():lower() == "combat" then
+    if (me.CombatState() or ""):lower() == "combat" then
         utils.output("\arCannot memorize %s during combat.", spellName)
         return false
     end
@@ -44,7 +44,12 @@ function casting.memorizeSpell(gemSlot, spellName)
     while maxWait > 0 do
         if me.Gem(gemSlot)() == spellName then break end
 
-        if me.CombatState():lower() == "combat" or me.Casting() or me.Moving() then
+        if abortFunc and abortFunc() then
+            utils.output("\arMemorization of %s aborted.", spellName)
+            return false
+        end
+
+        if (me.CombatState() or ""):lower() == "combat" or me.Casting() or me.Moving() then
             utils.output("\arMemorization of %s interrupted.", spellName)
             return false
         end
@@ -65,7 +70,7 @@ end
 
 -- Spell Preparation
 
-function casting.prepareSpells(set)
+function casting.prepareSpells(set, abortFunc)
     gemMap = {}
 
     local spellNames = {}
@@ -89,7 +94,7 @@ function casting.prepareSpells(set)
             utils.output("\arNot enough gem slots for all spells.")
             return nil
         end
-        local result = casting.memorizeSpell(nextGem, spellName)
+        local result = casting.memorizeSpell(nextGem, spellName, abortFunc)
         if not result then
             utils.output("\arFailed to prepare spell: %s", spellName)
             return nil
@@ -127,7 +132,7 @@ function casting.waitForCastComplete(abortFunc)
     local startWait = 1000
     while startWait > 0 do
         mq.doevents('squireFizzle')
-        if me.Casting() ~= nil or fizzled then break end
+        if me.Casting() or fizzled then break end
         mq.delay(100)
         startWait = startWait - 100
     end
@@ -183,6 +188,7 @@ function casting.useSource(entry, abortFunc)
         utils.debugOutput("Using AA '%s'", entry.name)
         mq.cmdf("/aa act %s", entry.name)
         casting.waitForCastComplete(abortFunc)
+        if abortFunc and abortFunc() then return false end
         return true
     elseif entry.type == "item" then
         if not utils.waitFor(function() return me.ItemReady(entry.name)() end, 30000, 100, abortFunc) then
@@ -193,6 +199,7 @@ function casting.useSource(entry, abortFunc)
         utils.debugOutput("Using item '%s'", entry.name)
         mq.cmdf('/useitem "%s"', entry.name)
         casting.waitForCastComplete(abortFunc)
+        if abortFunc and abortFunc() then return false end
         return true
     end
 

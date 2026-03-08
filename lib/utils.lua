@@ -7,6 +7,8 @@ local mq = require('mq')
 
 local utils = {}
 
+local displacedItem = nil
+
 -- Polling
 
 function utils.waitFor(conditionFunc, timeoutMs, checkIntervalMs, abortFunc)
@@ -72,8 +74,11 @@ local function defaultSettings()
         tellDenylist = {},
         tellReplies = true,
         allowMovement = false,
+        navDistance = 100,
         preQueueCommand = "",
         postQueueCommand = "",
+        reactiveMode = "page",
+        welcomeDone = false,
         sets = {},
     }
 end
@@ -131,9 +136,8 @@ end
 function utils.findBagWithSpace()
     for i = 1, mq.TLO.Me.NumBagSlots() do
         local packSlot = mq.TLO.InvSlot("pack" .. i)
-        local containerSlots = packSlot.Item.Container()
-        if containerSlots and containerSlots > 0 then
-            for s = 1, containerSlots do
+        if (packSlot.Item.Container() or 0) > 0 then
+            for s = 1, packSlot.Item.Container() do
                 if not packSlot.Item.Item(s).ID() then
                     return i, s
                 end
@@ -148,7 +152,7 @@ function utils.freeTopSlot()
     local sourceSlot
     for i = 1, mq.TLO.Me.NumBagSlots() do
         local packSlot = mq.TLO.InvSlot("pack" .. i)
-        if packSlot.Item.ID() and (not packSlot.Item.Container() or packSlot.Item.Container() == 0) then
+        if packSlot.Item.ID() and (packSlot.Item.Container() or 0) == 0 then
             sourceSlot = i
             utils.debugOutput("freeTopSlot: found non-container item in pack%d: %s", i, packSlot.Item.Name() or "?")
             break
@@ -160,8 +164,8 @@ function utils.freeTopSlot()
         utils.debugOutput("freeTopSlot: no non-container items, looking for empty containers")
         for i = 1, mq.TLO.Me.NumBagSlots() do
             local packSlot = mq.TLO.InvSlot("pack" .. i)
-            local container = packSlot.Item.Container()
-            if container and container > 0 then
+            local container = packSlot.Item.Container() or 0
+            if container > 0 then
                 local isEmpty = true
                 for s = 1, container do
                     if packSlot.Item.Item(s).ID() then
@@ -188,9 +192,8 @@ function utils.freeTopSlot()
     for i = 1, mq.TLO.Me.NumBagSlots() do
         if i ~= sourceSlot then
             local packSlot = mq.TLO.InvSlot("pack" .. i)
-            local containerSlots = packSlot.Item.Container()
-            if containerSlots and containerSlots > 0 then
-                for s = 1, containerSlots do
+            if (packSlot.Item.Container() or 0) > 0 then
+                for s = 1, packSlot.Item.Container() do
                     if not packSlot.Item.Item(s).ID() then
                         destPack = i
                         destSubSlot = s
@@ -224,8 +227,56 @@ function utils.freeTopSlot()
         return "abort"
     end
 
+    displacedItem = { sourceSlot = sourceSlot, destPack = destPack, destSubSlot = destSubSlot, }
     utils.debugOutput("freeTopSlot: freed pack%d", sourceSlot)
     return sourceSlot
+end
+
+function utils.restoreDisplacedItem()
+    if not displacedItem then return end
+    if mq.TLO.Cursor.ID() then
+        utils.debugOutput("restoreDisplacedItem: cursor occupied, skipping")
+        return
+    end
+
+    local info = displacedItem
+    displacedItem = nil
+
+    -- Verify the item is still where we put it
+    local destSlot = mq.TLO.InvSlot("pack" .. info.destPack)
+    if not destSlot.Item.Item(info.destSubSlot).ID() then
+        utils.debugOutput("restoreDisplacedItem: nothing in pack%d slot %d, skipping", info.destPack, info.destSubSlot)
+        return
+    end
+
+    -- Verify the original slot is free
+    if mq.TLO.InvSlot("pack" .. info.sourceSlot).Item.ID() then
+        utils.debugOutput("restoreDisplacedItem: pack%d is occupied, skipping", info.sourceSlot)
+        return
+    end
+
+    utils.debugOutput("restoreDisplacedItem: moving pack%d slot %d -> pack%d",
+        info.destPack, info.destSubSlot, info.sourceSlot)
+
+    -- Pick up from destination sub-slot
+    mq.cmdf("/nomodkey /shiftkey /itemnotify in pack%d %d leftmouseup", info.destPack, info.destSubSlot)
+    mq.delay(3000, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
+    if not mq.TLO.Cursor.ID() then
+        utils.debugOutput("restoreDisplacedItem: failed to pick up item, aborting restore")
+        return
+    end
+
+    -- Place back into original top-level slot
+    mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", info.sourceSlot)
+    mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+    if mq.TLO.Cursor.ID() then
+        utils.debugOutput("restoreDisplacedItem: failed to place item, autoinventorying")
+        mq.cmd("/autoinventory")
+        mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+        return
+    end
+
+    utils.debugOutput("restoreDisplacedItem: restored item to pack%d", info.sourceSlot)
 end
 
 function utils.ensureFreeTopSlot()
@@ -239,17 +290,16 @@ function utils.ensureFreeTopSlot()
 end
 
 function utils.clearCursor(needTopSlot)
-    if not mq.TLO.Cursor.ID() then
-        return nil
-    end
-    utils.debugOutput("clearCursor: %s (ID: %d), needTopSlot=%s", mq.TLO.Cursor.Name() or "?", mq.TLO.Cursor.ID(), tostring(needTopSlot))
+    if not mq.TLO.Cursor.ID() then return end
+    local cursorName = mq.TLO.Cursor.Name() or "unknown item"
+    utils.debugOutput("clearCursor: %s (ID: %d), needTopSlot=%s", cursorName, mq.TLO.Cursor.ID(), tostring(needTopSlot))
 
     if not needTopSlot then
         mq.cmd("/autoinventory")
         mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
         if mq.TLO.Cursor.ID() then
             utils.output("\arFailed to autoinventory cursor item.")
-            return "abort"
+            return "abort", string.format("failed to autoinventory '%s'", cursorName)
         end
         return nil
     end
@@ -258,14 +308,14 @@ function utils.clearCursor(needTopSlot)
     local destPack, destSubSlot = utils.findBagWithSpace()
     if not destPack then
         utils.output("\arCannot clear cursor: no bag has a free sub-slot.")
-        return "abort"
+        return "abort", string.format("'%s' on cursor, no free bag slot to place it", cursorName)
     end
 
     mq.cmdf("/nomodkey /itemnotify in pack%d %d leftmouseup", destPack, destSubSlot)
     mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
     if mq.TLO.Cursor.ID() then
         utils.output("\arFailed to place cursor item into pack%d slot %d.", destPack, destSubSlot)
-        return "abort"
+        return "abort", string.format("failed to place '%s' into pack%d slot %d", cursorName, destPack, destSubSlot)
     end
 
     return nil
