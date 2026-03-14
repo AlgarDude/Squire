@@ -209,7 +209,7 @@ return {
                         { id = 177681, name = "Summoned: Arcane Belt",              icon = 5064, },
                     },
                     trashItems = {
-                        { id = 177675, name = "Arcane Armor Pack", icon = 12578, },
+                        { id = 177670, name = "Arcane Armor Pack", icon = 12578, },
                     },
                 },
                 {
