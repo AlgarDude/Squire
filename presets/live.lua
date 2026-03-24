@@ -13,6 +13,7 @@ local phantomSatchel2 = { id = 57262, name = "Phantom Satchel", icon = 691, }
 return {
     {
         title = "Class Preset (Live)",
+        alias = "preset",
         classes = { "MAG", },
         effects = {
             { -- Armor

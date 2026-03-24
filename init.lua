@@ -13,7 +13,7 @@ local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 local reactive = require('squire.lib.reactive')
 
-local version = "0.9p"
+local version = "0.9q"
 
 -- Module-Level State
 
@@ -114,10 +114,12 @@ end
 -- Preset System
 
 local presetClassMap = {}
+local presetAliasOf = {}
 
 local function resolvePresets()
     presetSets = {}
     presetClassMap = {}
+    presetAliasOf = {}
 
     local presetFile
     if mq.TLO.MacroQuest.BuildName():lower() == "emu" then
@@ -195,12 +197,25 @@ local function resolvePresets()
             end
             presetClassMap[title] = definition.classes
             presetSets[title] = resolvedSet
+            if definition.alias then
+                presetAliasOf[title] = definition.alias
+            end
         end
     end
 end
 
 local function getSet(setName)
-    return settings.sets[setName] or presetSets[setName]
+    if settings.sets[setName] then return settings.sets[setName] end
+    if presetSets[setName] then return presetSets[setName] end
+    local lower = setName:lower()
+    for name, set in pairs(settings.sets) do
+        if name:lower() == lower then return set end
+    end
+    for name, set in pairs(presetSets) do
+        if name:lower() == lower then return set end
+        if presetAliasOf[name] and presetAliasOf[name]:lower() == lower then return set end
+    end
+    return nil
 end
 
 local function findPresetForClass(class)
@@ -236,6 +251,26 @@ local function getAllSetNames()
     return names
 end
 
+local function getTellSetNames()
+    local names = {}
+    for name in pairs(settings.sets) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+
+    local presetNames = {}
+    for name in pairs(presetSets) do
+        if not settings.sets[name] then
+            table.insert(presetNames, presetAliasOf[name] or name)
+        end
+    end
+    table.sort(presetNames)
+    for _, name in ipairs(presetNames) do
+        table.insert(names, name)
+    end
+    return names
+end
+
 -- Core Arm Logic
 
 local function armPet(playerName, setName, fromTell, abortCheck)
@@ -250,37 +285,25 @@ local function armPet(playerName, setName, fromTell, abortCheck)
 
     if not set then
         utils.output("\arSet '%s' not found.", setName)
-        if fromTell and settings.tellReplies then
-            mq.cmdf('/tell %s Set "%s" not found.', playerName, setName)
-        end
         return true
     end
 
     -- Find pet
     local petSpawn = mq.TLO.Spawn("pc " .. playerName).Pet
 
-    if not petSpawn() then
+    if (petSpawn.ID() or 0) == 0 then
         utils.output("\ay%s does not have a pet.", playerName)
-        if fromTell and settings.tellReplies then
-            mq.cmdf("/tell %s You do not appear to have a pet.", playerName)
-        end
         return true, "skipped"
     end
 
     if (petSpawn.DisplayName() or ""):lower():find("familiar") then
         utils.output("\ay%s pet is a familiar. Skipping.", petDisplayName(playerName))
-        if fromTell and settings.tellReplies then
-            mq.cmdf("/tell %s Your pet appears to be a familiar.", playerName)
-        end
         return true, "skipped"
     end
 
     -- Range check
     if not delivery.ensureInRange(petSpawn, settings.allowMovement, abortCheck, settings.navDistance) then
         utils.output("\ay%s pet is out of range. Skipping.", petDisplayName(playerName))
-        if fromTell and settings.tellReplies then
-            mq.cmdf("/tell %s Your pet is out of range.", playerName)
-        end
         return true, "skipped"
     end
 
@@ -329,7 +352,7 @@ local function armPet(playerName, setName, fromTell, abortCheck)
             if abortFunc() then break end
 
             -- Re-check pet existence
-            if not petSpawn() then
+            if (petSpawn.ID() or 0) == 0 then
                 utils.output("\ayPet no longer exists. Skipping remaining sources.")
                 break
             end
@@ -415,6 +438,41 @@ end
 local function addToQueue(playerName, setName, fromTell)
     if aborted then
         utils.output("\arArming halted. Use /squire reset to resume.")
+        return
+    end
+
+    local petSpawn = mq.TLO.Spawn("pc " .. playerName).Pet
+    if (petSpawn.ID() or 0) == 0 then
+        utils.output("\ay%s does not have a pet.", playerName)
+        if fromTell and settings.tellReplies then
+            mq.cmdf("/tell %s You do not appear to have a pet.", playerName)
+        end
+        return
+    end
+
+    if (petSpawn.DisplayName() or ""):lower():find("familiar") then
+        utils.output("\ay%s pet is a familiar. Skipping.", petDisplayName(playerName))
+        if fromTell and settings.tellReplies then
+            mq.cmdf("/tell %s Your pet appears to be a familiar.", playerName)
+        end
+        return
+    end
+
+    if (petSpawn.Distance3D() or 999) > (settings.navDistance or 100) then
+        utils.output("\ay%s pet is out of range. Skipping.", petDisplayName(playerName))
+        if fromTell and settings.tellReplies then
+            mq.cmdf("/tell %s Your pet is out of range.", playerName)
+        end
+        return
+    end
+
+    local resolvedSetName = setName or settings.selectedSet
+    if not getSet(resolvedSetName) then
+        local available = table.concat(getTellSetNames(), ", ")
+        utils.output("\arSet '%s' not found. Available sets: %s", resolvedSetName, available)
+        if fromTell and settings.tellReplies then
+            mq.cmdf('/tell %s Set "%s" not found. Available sets: %s', playerName, resolvedSetName, available)
+        end
         return
     end
 
@@ -528,7 +586,7 @@ local function isAllowedSender(senderName)
     elseif settings.tellAccess == "group" then
         for i = 1, 5 do
             local member = mq.TLO.Group.Member(i)
-            if member() and member.DisplayName():lower() == senderName:lower() then
+            if member() and (member.DisplayName() or ""):lower() == senderName:lower() then
                 return true
             end
         end
@@ -536,7 +594,7 @@ local function isAllowedSender(senderName)
     elseif settings.tellAccess == "raid" then
         for i = 1, mq.TLO.Raid.Members() or 0 do
             local member = mq.TLO.Raid.Member(i)
-            if member() and member.DisplayName():lower() == senderName:lower() then
+            if member() and (member.DisplayName() or ""):lower() == senderName:lower() then
                 return true
             end
         end
@@ -2071,6 +2129,7 @@ end
 -- Render Dispatcher
 
 local function renderUI()
+    if mq.TLO.MacroQuest.GameState() ~= 'INGAME' then return end
     if not showUI and not showWelcome then return end
 
     imgui.PushStyleVar(ImGuiStyleVar.FrameRounding, 4)
@@ -2172,6 +2231,7 @@ mq.bind('/squire', commandHandler)
 registerTellEvent = function()
     mq.event('squireRequest', "#1# tells you, '#2#'", function(line, sender, message)
         if not message then return end
+        if sender:lower() == me.DisplayName():lower() then return end
         local trimmed = message:gsub("^%s+", ""):gsub("%s+$", "")
         local triggerLower = settings.triggerWord:lower()
 
@@ -2190,6 +2250,8 @@ end
 if settings.tellAccess ~= "disabled" then
     registerTellEvent()
 end
+
+utils.output("Running.")
 
 while mq.TLO.MacroQuest.GameState() == 'INGAME' do
     mq.doevents()
@@ -2223,3 +2285,5 @@ while mq.TLO.MacroQuest.GameState() == 'INGAME' do
     reactive.tick()
     mq.delay(100)
 end
+
+utils.output("No longer in game, exiting.")

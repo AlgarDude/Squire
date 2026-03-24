@@ -27,7 +27,7 @@ end
 
 function delivery.navToPet(petSpawn, abortFunc, maxDistance)
     if not delivery.navLoaded then return false end
-    if not petSpawn() then return false end
+    if (petSpawn.ID() or 0) == 0 then return false end
 
     local nav = mq.TLO.Navigation
     if not nav.MeshLoaded() then return false end
@@ -62,7 +62,7 @@ function delivery.navToPet(petSpawn, abortFunc, maxDistance)
 
     mq.delay(15000, function()
         return not nav.Active() or (petSpawn.Distance3D() or 999) <= 10
-            or (abortFunc and abortFunc())
+            or (abortFunc and abortFunc()) or false
     end)
 
     if nav.Active() then
@@ -104,7 +104,7 @@ end
 -- Range Check
 
 function delivery.ensureInRange(petSpawn, allowMovement, abortFunc, maxDistance)
-    if not petSpawn() then return false end
+    if (petSpawn.ID() or 0) == 0 then return false end
     if (petSpawn.Distance3D() or 999) <= 20 then return true end
     if not allowMovement then return false end
     return delivery.navToPet(petSpawn, abortFunc, maxDistance)

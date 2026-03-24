@@ -261,7 +261,7 @@ local function processReactiveQueue()
 
         -- Pre-check: skip if pet missing/unreachable before firing pre-command
         local petSpawn = mq.TLO.Spawn("pc " .. entry.playerName).Pet
-        if not petSpawn()
+        if (petSpawn.ID() or 0) == 0
             or (petSpawn.DisplayName() or ""):lower():find("familiar")
             or (petSpawn.Distance3D() or 999) > 100 then
             currentlyArming = nil

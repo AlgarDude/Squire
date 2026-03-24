@@ -15,6 +15,7 @@ local walnanBlade = { id = 28595, name = "Summoned: Blade of Walnan", icon = 134
 return {
   {
     title = "Class Preset (EQM)",
+    alias = "preset",
     classes = { "ENC", "NEC", },
     effects = {
       { -- Mask
@@ -87,6 +88,7 @@ return {
   },
   {
     title = "Class Preset (EQM)",
+    alias = "preset",
     classes = { "BST", },
     effects = {
       { -- Mask
@@ -135,6 +137,7 @@ return {
   },
   {
     title = "Class Preset (EQM)",
+    alias = "preset",
     classes = { "MAG", },
     effects = {
       { -- Armor
