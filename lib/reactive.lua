@@ -249,6 +249,7 @@ local function processReactiveQueue()
         if getBlockReason() then break end
 
         local entry = reactiveQueue[1]
+        if not entry then break end
         currentlyArming = entry.playerName
 
         broadcast({ command = 'claim', playerName = entry.playerName, squireName = myName, })
