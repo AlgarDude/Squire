@@ -10,6 +10,8 @@ Spells, Clickies, AA, we do it. Arm yours, arm theirs, whatever... we do it.
 
 Not feeling the OW? Set your keyword/tell requests up, and make them come to you... it's all the same to us.
 
+Update: Squire now supports auto-arming! Anyone can run squire to monitor their pet and report to their pet-arming peers when they need toys.
+
 &nbsp;
 
 ## Painless Pet-Arming with Presets
