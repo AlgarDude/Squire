@@ -13,7 +13,7 @@ local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 local reactive = require('squire.lib.reactive')
 
-local version = "0.9r"
+local version = "0.9t"
 
 -- Module-Level State
 
@@ -338,9 +338,12 @@ local function armPet(playerName, setName, fromTell, abortCheck)
     end
 
     -- Prepare spells
-    if not casting.prepareSpells(set, abortFunc) then
+    local spellResult = casting.prepareSpells(set, abortFunc)
+    if spellResult == nil then
         utils.output("\arFailed to prepare spells for set '%s'.", setName)
         return false, string.format("failed to memorize spells for set '%s'", setName)
+    elseif spellResult == false then
+        return true, "aborted"
     end
 
     -- Execute delivery for each enabled source entry in order
@@ -1412,7 +1415,8 @@ local function renderSettingsWindow()
         if not reactive.isPageActive() then imgui.BeginDisabled() end
         settings.alwaysRequestArming, changed = imgui.Checkbox("My Pet Appears Armed When Summoned", settings.alwaysRequestArming)
         if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
-            imgui.SetTooltip("Squire checks for visible weapons to determine if a pet needs arming.\nIf your pet appears armed when summoned (e.g., enchanter animations),\ncheck this option to request arming in page mode anyway.\nDoes not affect the current pet.")
+            imgui.SetTooltip(
+                "Squire checks for visible weapons to determine if a pet needs arming.\nIf your pet appears armed when summoned (e.g., enchanter animations),\ncheck this option to request arming in page mode anyway.\nDoes not affect the current pet.")
         end
         if changed then settingsDirty = true end
         if not reactive.isPageActive() then imgui.EndDisabled() end

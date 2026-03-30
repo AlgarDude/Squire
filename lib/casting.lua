@@ -17,10 +17,11 @@ end)
 
 -- Spell Memorization
 
+-- Returns gem slot on success, nil on hard failure (not in spellbook), false on transient failure.
 function casting.memorizeSpell(gemSlot, spellName, abortFunc)
     if not me.Book(spellName)() then
         utils.output("\ar%s is not in spellbook.", spellName)
-        return false
+        return nil
     end
 
     -- Already memorized somewhere? Return that gem.
@@ -95,9 +96,11 @@ function casting.prepareSpells(set, abortFunc)
             return nil
         end
         local result = casting.memorizeSpell(nextGem, spellName, abortFunc)
-        if not result then
+        if result == nil then
             utils.output("\arFailed to prepare spell: %s", spellName)
             return nil
+        elseif result == false then
+            return false
         end
         gemMap[spellName] = result
         if result == nextGem then

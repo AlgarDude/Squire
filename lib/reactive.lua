@@ -16,6 +16,7 @@ local reactive = {}
 
 local me = mq.TLO.Me
 local myName = me.DisplayName()
+local myServer = mq.TLO.EverQuest.Server() or ""
 local deps = {}
 local actor = nil
 
@@ -36,11 +37,14 @@ local preFired = false
 local recentlyArmed = {}
 local lastArmedPetId = {}
 local lastZoneId = mq.TLO.Zone.ID() or 0
+local savedGems = nil
 
 -- Helpers
 
 local function broadcast(content)
     if actor then
+        content.server = myServer
+        content.zoneId = mq.TLO.Zone.ID() or 0
         actor:send(content)
     end
 end
@@ -101,13 +105,16 @@ local function handleMessage(message)
     local cmd = message.content and message.content.command
     if not cmd then return end
 
+    local content = message.content
+    if content.server ~= myServer then return end
+    if content.zoneId ~= (mq.TLO.Zone.ID() or 0) then return end
+
     -- Global commands (handled regardless of mode)
-    if cmd == "welcome_done" and message.content.senderName ~= myName then
+    if cmd == "welcome_done" and content.senderName ~= myName then
         if deps.onWelcomeDone then deps.onWelcomeDone() end
         return
     end
 
-    local content = message.content
     local mode = deps.settings.reactiveMode or "off"
     if mode == "off" then return end
 
@@ -231,7 +238,9 @@ local function processReactiveQueue()
     local mode = deps.settings.reactiveMode or "off"
     deps.setIsArming(true)
     preFired = false
-    local savedGems = saveCurrentGems()
+    if not savedGems then
+        savedGems = saveCurrentGems()
+    end
     local haltReason = nil
 
     local processed = 0
@@ -296,7 +305,7 @@ local function processReactiveQueue()
                 broadcast({ command = 'aborted', playerName = entry.playerName, squireName = myName, reason = 'inventory', })
                 currentlyArming = nil
                 break
-            elseif abortFired or deps.stopRequested() then
+            elseif status == "aborted" or abortFired or deps.stopRequested() then
                 -- Mid-pet environmental abort or user stop
                 broadcast({ command = 'release', playerName = entry.playerName, squireName = myName, })
                 broadcast({
@@ -358,6 +367,7 @@ local function processReactiveQueue()
         end
 
         casting.restoreSpells(savedGems)
+        savedGems = nil
 
         delivery.navToStart(deps.settings.allowMovement)
 
@@ -438,10 +448,11 @@ function reactive.onStop()
     awaitingArm = false
     recentlyArmed = {}
     lastArmedPetId = {}
+    savedGems = nil
 end
 
 function reactive.onReset()
-    -- Reactive resumes naturally on next tick when aborted clears
+    savedGems = nil
 end
 
 function reactive.onModeChange(oldMode, newMode)
