@@ -11,7 +11,7 @@ local gemMap = {}
 local me = mq.TLO.Me
 local fizzled = false
 
-mq.event('squireFizzle', "Your #1# spell fizzles!", function()
+mq.event('squireFizzle', "Your spell fizzles#*#", function()
     fizzled = true
 end)
 
@@ -137,7 +137,9 @@ function casting.waitForCastComplete(abortFunc)
         startWait = startWait - 100
     end
 
-    if fizzled then return end
+    if fizzled then return true end
+
+    if not me.Casting() then return false end
 
     -- Wait for casting to finish
     local castWait = 30000
@@ -148,6 +150,8 @@ function casting.waitForCastComplete(abortFunc)
         mq.delay(100)
         castWait = castWait - 100
     end
+
+    return true
 end
 
 function casting.useSource(entry, abortFunc)
@@ -167,7 +171,11 @@ function casting.useSource(entry, abortFunc)
             if abortFunc and abortFunc() then return false end
             utils.debugOutput("Casting spell '%s' from gem %d", entry.name, gem)
             mq.cmdf("/cast %d", gem)
-            casting.waitForCastComplete(abortFunc)
+            local started = casting.waitForCastComplete(abortFunc)
+            if not started then
+                utils.output("\arSpell %s never started casting.", entry.name)
+                return false
+            end
             if not fizzled then return true end
             if attempt < 3 then
                 utils.debugOutput("Spell fizzled (attempt %d/3), retrying...", attempt)

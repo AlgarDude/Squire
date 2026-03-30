@@ -1106,7 +1106,7 @@ local function renderMainWindow()
         if pageOnly then
             imgui.TextColored(0.4, 0.8, 1, 1, "Monitoring")
         elseif aborted then
-            imgui.TextColored(1, 0, 0, 1, statusText)
+            imgui.TextColored(1, 0, 0, 1, "HALTED")
             imgui.SameLine()
             if imgui.SmallButton("Reset") then
                 aborted = false
@@ -1114,6 +1114,7 @@ local function renderMainWindow()
                 statusText = "Idle"
                 reactive.onReset()
             end
+            imgui.TextColored(1, 0, 0, 1, statusText)
         elseif isArming then
             imgui.TextColored(1, 1, 0, 1, statusText)
         else
@@ -1407,6 +1408,14 @@ local function renderSettingsWindow()
         end
 
         if pageOnly then imgui.EndDisabled() end
+
+        if not reactive.isPageActive() then imgui.BeginDisabled() end
+        settings.alwaysRequestArming, changed = imgui.Checkbox("My Pet Appears Armed When Summoned", settings.alwaysRequestArming)
+        if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
+            imgui.SetTooltip("Squire checks for visible weapons to determine if a pet needs arming.\nIf your pet appears armed when summoned (e.g., enchanter animations),\ncheck this option to request arming in page mode anyway.\nDoes not affect the current pet.")
+        end
+        if changed then settingsDirty = true end
+        if not reactive.isPageActive() then imgui.EndDisabled() end
 
         settings.debugMode, changed = imgui.Checkbox("Debug Logging", settings.debugMode)
         if changed then

@@ -74,6 +74,7 @@ local function defaultSettings()
         tellDenylist = {},
         tellReplies = true,
         allowMovement = false,
+        alwaysRequestArming = false,
         navDistance = 100,
         preQueueCommand = "",
         postQueueCommand = "",

@@ -167,7 +167,7 @@ local function pollPetId()
         awaitingArm = false
     elseif lastPetId == 0 and currentPetId > 0 then
         if not (me.Pet.DisplayName() or ""):lower():find("familiar") then
-            if not awaitingArm and ((me.Pet.Primary() or 0) == 0 or (me.Pet.Secondary() or 0) == 0) then
+            if not awaitingArm and ((me.Pet.Primary() or 0) == 0 or (me.Pet.Secondary() or 0) == 0 or deps.settings.alwaysRequestArming) then
                 utils.output("Pet summoned - requesting arming.")
                 broadcast({ command = 'arm', playerName = myName, petId = currentPetId, })
                 awaitingArm = true
@@ -474,6 +474,11 @@ end
 function reactive.isPageOnly()
     local mode = deps and deps.settings.reactiveMode or "off"
     return mode == "page"
+end
+
+function reactive.isPageActive()
+    local mode = deps and deps.settings.reactiveMode or "off"
+    return mode == "page" or mode == "both"
 end
 
 function reactive.broadcastWelcomeDone()
