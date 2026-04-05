@@ -62,10 +62,24 @@ end
 
 -- Gating (Reactive Mode Only)
 
+local function hasXTargetHaters()
+    local xtCount = me.XTarget() or 0
+    for i = 1, xtCount do
+        local xt = me.XTarget(i)
+        if xt and (xt.ID() or 0) > 0 and not xt.Dead()
+            and (xt.Type() or "Corpse") ~= "Corpse"
+            and (xt.Aggressive() or (xt.TargetType() or ""):lower() == "auto hater") then
+            return true
+        end
+    end
+    return false
+end
+
 -- Mid-arm abort: only checks external interruptions, not states caused by arming itself
 -- (casting, cursor, moving, GiveWnd are all expected during arming)
 local function shouldAbortArming()
     if me.CombatState() == "COMBAT" then return true end
+    if hasXTargetHaters() then return true end
     if me.Dead() then return true end
     if me.Feigning() then return true end
     if mq.TLO.MacroQuest.GameState() ~= 'INGAME' then return true end
@@ -78,6 +92,7 @@ end
 
 local function getBlockReason()
     if me.CombatState() == "COMBAT" then return "in combat" end
+    if hasXTargetHaters() then return "xtarget haters" end
     if me.Dead() then return "dead" end
     if me.Feigning() then return "feigning" end
     if mq.TLO.MacroQuest.GameState() ~= 'INGAME' then return "not in game" end
@@ -305,14 +320,18 @@ local function processReactiveQueue()
                 broadcast({ command = 'aborted', playerName = entry.playerName, squireName = myName, reason = 'inventory', })
                 currentlyArming = nil
                 break
-            elseif status == "aborted" or abortFired or deps.stopRequested() then
-                -- Mid-pet environmental abort or user stop
+            elseif status == "pet_unavailable" or status == "aborted" or abortFired or deps.stopRequested() then
+                -- Mid-pet environmental abort, pet unavailable, or user stop
+                local reason = 'stopped'
+                if abortFired then reason = 'environment'
+                elseif status == "pet_unavailable" then reason = 'pet_unavailable'
+                end
                 broadcast({ command = 'release', playerName = entry.playerName, squireName = myName, })
                 broadcast({
                     command = 'aborted',
                     playerName = entry.playerName,
                     squireName = myName,
-                    reason = abortFired and 'environment' or 'stopped',
+                    reason = reason,
                 })
                 currentlyArming = nil
                 break

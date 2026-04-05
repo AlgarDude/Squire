@@ -162,13 +162,16 @@ local function batchGive(petSpawn, itemFuncs, abortFunc, navParams)
     -- itemFuncs = list of { id = number, getItem = function() -> bool }
     -- getItem puts the item on cursor, returns true on success
     -- Groups into batches of 4, gives each batch via GiveWnd
+    -- Returns: allSuccess, petUnavailable
     local allSuccess = true
+    local petUnavailable = false
 
     for batchStart = 1, #itemFuncs, 4 do
         if abortFunc and abortFunc() then
             allSuccess = false
             break
         end
+        if petUnavailable then break end
 
         local batchEnd = math.min(batchStart + 3, #itemFuncs)
         utils.debugOutput(" Batch %d-%d of %d", batchStart, batchEnd, #itemFuncs)
@@ -199,13 +202,10 @@ local function batchGive(petSpawn, itemFuncs, abortFunc, navParams)
                 utils.output("\arFailed to open GiveWnd. Autoinventorying cursor item.")
                 mq.cmd("/autoinventory")
                 mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
-                ok = false
-                -- GiveWnd failure likely means pet is unavailable (combat, out of range)
-                -- Check abort immediately rather than continuing to next item
-                if abortFunc and abortFunc() then
-                    allSuccess = false
-                    break
-                end
+                -- Pet is unavailable (combat, untargetable, out of range)
+                petUnavailable = true
+                allSuccess = false
+                break
             end
             if ok then
                 utils.debugOutput("Placed in trade: %s (ID: %d)", itemFunc.name or "?", itemFunc.id)
@@ -229,7 +229,7 @@ local function batchGive(petSpawn, itemFuncs, abortFunc, navParams)
         end
     end
 
-    return allSuccess
+    return allSuccess, petUnavailable
 end
 
 -- Direct Delivery
@@ -280,7 +280,8 @@ function delivery.deliverCursor(entry, petSpawn, abortFunc, navParams)
         })
     end
 
-    return batchGive(petSpawn, itemFuncs, abortFunc, navParams)
+    local success, petUnavailable = batchGive(petSpawn, itemFuncs, abortFunc, navParams)
+    return success, petUnavailable
 end
 
 -- Bag Delivery
@@ -413,11 +414,11 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc, navParams)
         })
     end
 
-    local success = batchGive(petSpawn, itemFuncs, abortFunc, navParams)
+    local success, petUnavailable = batchGive(petSpawn, itemFuncs, abortFunc, navParams)
 
     delivery.cleanupBag(entry, freeSlot)
 
-    return success
+    return success, petUnavailable
 end
 
 -- Bag Cleanup
@@ -545,7 +546,7 @@ function delivery.deliverTrade(entry, petSpawn, navParams)
         utils.output("\arFailed to open GiveWnd for %s. Autoinventorying.", entry.name)
         mq.cmd("/autoinventory")
         mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
-        return false
+        return false, true
     end
 
     if giveWnd.Open() then

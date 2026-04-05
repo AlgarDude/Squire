@@ -349,6 +349,7 @@ local function armPet(playerName, setName, fromTell, abortCheck)
     -- Execute delivery for each enabled source entry in order
     local results = {}
     local navParams = { allow = settings.allowMovement, abort = abortFunc, maxDist = settings.navDistance, }
+    local petUnavailable = false
 
     for i, entry in ipairs(set) do
         if entry.enabled then
@@ -372,16 +373,22 @@ local function armPet(playerName, setName, fromTell, abortCheck)
                 results[i] = false
             else
                 local success = false
+                local sourceUnavailable = false
                 if entry.method == "direct" then
                     success = delivery.deliverDirect(entry, petSpawn, abortFunc, navParams)
                 elseif entry.method == "cursor" then
-                    success = delivery.deliverCursor(entry, petSpawn, abortFunc, navParams)
+                    success, sourceUnavailable = delivery.deliverCursor(entry, petSpawn, abortFunc, navParams)
                 elseif entry.method == "bag" then
-                    success = delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc, navParams)
+                    success, sourceUnavailable = delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc, navParams)
                 elseif entry.method == "trade" then
-                    success = delivery.deliverTrade(entry, petSpawn, navParams)
+                    success, sourceUnavailable = delivery.deliverTrade(entry, petSpawn, navParams)
                 end
                 results[i] = success
+                if sourceUnavailable then
+                    petUnavailable = true
+                    utils.output("\ayPet unavailable for giving. Skipping remaining sources.")
+                    break
+                end
                 -- After a failed source, check abort before trying next source
                 if not success and abortFunc() then break end
             end
@@ -431,6 +438,10 @@ local function armPet(playerName, setName, fromTell, abortCheck)
         else
             mq.cmdf("/tell %s Processed %d/%d sources for your pet.", playerName, passed, total)
         end
+    end
+
+    if petUnavailable then
+        return true, "pet_unavailable"
     end
 
     return true
