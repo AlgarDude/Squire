@@ -13,7 +13,7 @@ local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 local reactive = require('squire.lib.reactive')
 
-local version = "0.9t"
+local version = "0.9u"
 
 -- Module-Level State
 

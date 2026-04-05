@@ -371,9 +371,11 @@ local function processReactiveQueue()
 
         delivery.navToStart(deps.settings.allowMovement)
 
-        if preFired and deps.settings.postQueueCommand ~= "" then
-            mq.cmdf("%s", deps.settings.postQueueCommand)
-        end
+    end
+
+    -- Post-command fires even if cleanup was skipped (combat etc.), but not on explicit stop
+    if preFired and not deps.stopRequested() and deps.settings.postQueueCommand ~= "" then
+        mq.cmdf("%s", deps.settings.postQueueCommand)
     end
 
     delivery.clearStartPosition()
