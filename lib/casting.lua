@@ -89,6 +89,7 @@ function casting.prepareSpells(set, abortFunc)
         return gemMap
     end
 
+    -- Fill from last gem slot down to minimize disruption to main spell lineup
     local nextGem = me.NumGems()
     for _, spellName in ipairs(spellNames) do
         if nextGem < 1 then
@@ -116,7 +117,15 @@ function casting.prepareSpells(set, abortFunc)
     return gemMap
 end
 
--- Spell Restoration
+-- Spell Save/Restore
+
+function casting.saveCurrentGems()
+    local gems = {}
+    for i = 1, me.NumGems() do
+        gems[i] = me.Gem(i)() or ""
+    end
+    return gems
+end
 
 function casting.restoreSpells(savedGems)
     for gemSlot, spellName in pairs(savedGems) do
@@ -128,6 +137,7 @@ end
 
 -- Source Execution
 
+-- Returns true if casting started (even if fizzled/interrupted), false if it never began.
 function casting.waitForCastComplete(abortFunc)
     fizzled = false
 

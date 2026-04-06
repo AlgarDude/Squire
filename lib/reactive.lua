@@ -49,6 +49,11 @@ local function broadcast(content)
     end
 end
 
+local function clearQueue()
+    reactiveQueue = {}
+    reactiveQueuedNames = Set.new({})
+end
+
 local function removeFromReactiveQueue(playerName)
     if not playerName then return end
     local lower = playerName:lower()
@@ -75,37 +80,34 @@ local function hasXTargetHaters()
     return false
 end
 
--- Mid-arm abort: only checks external interruptions, not states caused by arming itself
+-- Hard blocks: external interruptions that should abort mid-arm
 -- (casting, cursor, moving, GiveWnd are all expected during arming)
-local function shouldAbortArming()
-    if me.CombatState() == "COMBAT" then return true end
-    if hasXTargetHaters() then return true end
-    if me.Dead() then return true end
-    if me.Feigning() then return true end
-    if mq.TLO.MacroQuest.GameState() ~= 'INGAME' then return true end
-    if mq.TLO.Window("TradeWnd").Open() then return true end
-    if mq.TLO.Window("LootWnd").Open() then return true end
-    if mq.TLO.Window("MerchantWnd").Open() then return true end
-    if mq.TLO.Window("BigBankWnd").Open() then return true end
-    return false
-end
-
-local function getBlockReason()
+local function getHardBlockReason()
     if me.CombatState() == "COMBAT" then return "in combat" end
     if hasXTargetHaters() then return "xtarget haters" end
     if me.Dead() then return "dead" end
     if me.Feigning() then return "feigning" end
     if mq.TLO.MacroQuest.GameState() ~= 'INGAME' then return "not in game" end
-    if me.Casting.ID() then return "casting" end
-    if me.Moving() then return "moving" end
-    if mq.TLO.Cursor.ID() then return "item on cursor" end
-    if mq.TLO.Window("SpellBookWnd").Open() then return "spellbook open" end
     if mq.TLO.Window("TradeWnd").Open() then return "trade window open" end
     if mq.TLO.Window("LootWnd").Open() then return "loot window open" end
     if mq.TLO.Window("MerchantWnd").Open() then return "merchant open" end
     if mq.TLO.Window("BigBankWnd").Open() then return "bank open" end
-    if mq.TLO.Window("GiveWnd").Open() then return "give window open" end
     return nil
+end
+
+local function shouldAbortArming()
+    return getHardBlockReason() ~= nil
+end
+
+-- Soft blocks: temporary states that prevent starting a new pet but don't abort mid-arm
+local function getBlockReason()
+    return getHardBlockReason()
+        or (me.Casting.ID() and "casting")
+        or (me.Moving() and "moving")
+        or (mq.TLO.Cursor.ID() and "item on cursor")
+        or (mq.TLO.Window("SpellBookWnd").Open() and "spellbook open")
+        or (mq.TLO.Window("GiveWnd").Open() and "give window open")
+        or nil
 end
 
 local function isSafeToArm()
@@ -130,7 +132,7 @@ local function handleMessage(message)
         return
     end
 
-    local mode = deps.settings.reactiveMode or "off"
+    local mode = deps.settings.reactiveMode
     if mode == "off" then return end
 
     -- Squire role: arm, claim, release, done
@@ -188,7 +190,7 @@ local function pollPetId()
     if lastPetId > 0 and currentPetId == 0 then
         awaitingArm = false
     elseif lastPetId == 0 and currentPetId > 0 then
-        if not (me.Pet.DisplayName() or ""):lower():find("familiar") then
+        if not utils.isFamiliar(me.Pet) then
             if not awaitingArm and ((me.Pet.Primary() or 0) == 0 or (me.Pet.Secondary() or 0) == 0 or deps.settings.alwaysRequestArming) then
                 utils.output("Pet summoned - requesting arming.")
                 broadcast({ command = 'arm', playerName = myName, petId = currentPetId, })
@@ -207,7 +209,7 @@ local function pollPetWeapons()
     lastWeaponPollTime = now
 
     if (me.Pet.ID() or 0) == 0 then return end
-    if (me.Pet.DisplayName() or ""):lower():find("familiar") then return end
+    if utils.isFamiliar(me.Pet) then return end
     if awaitingArm then
         if now - awaitingArmTime > 60000 then
             utils.debugOutput("Reactive: arm request timed out, retrying")
@@ -237,24 +239,14 @@ end
 
 -- Squire Logic
 
-local function saveCurrentGems()
-    local gems = {}
-    for i = 1, me.NumGems() do
-        gems[i] = me.Gem(i)() or ""
-    end
-    return gems
-end
-
 local function processReactiveQueue()
     if #reactiveQueue == 0 then return end
     if not isSafeToArm() then return end
     if not deps.getSet(deps.settings.selectedSet) then return end
 
-    local mode = deps.settings.reactiveMode or "off"
     deps.setIsArming(true)
-    preFired = false
     if not savedGems then
-        savedGems = saveCurrentGems()
+        savedGems = casting.saveCurrentGems()
     end
     local haltReason = nil
 
@@ -263,10 +255,9 @@ local function processReactiveQueue()
     while #reactiveQueue > 0 do
         if deps.stopRequested() or deps.aborted() then break end
 
-        local currentMode = deps.settings.reactiveMode or "off"
+        local currentMode = deps.settings.reactiveMode
         if currentMode ~= "squire" and currentMode ~= "both" then
-            reactiveQueue = {}
-            reactiveQueuedNames = Set.new({})
+            clearQueue()
             break
         end
 
@@ -287,7 +278,7 @@ local function processReactiveQueue()
         -- Pre-check: skip if pet missing/unreachable before firing pre-command
         local petSpawn = mq.TLO.Spawn("pc " .. entry.playerName).Pet
         if (petSpawn.ID() or 0) == 0
-            or (petSpawn.DisplayName() or ""):lower():find("familiar")
+            or utils.isFamiliar(petSpawn)
             or (petSpawn.Distance3D() or 999) > 100 then
             currentlyArming = nil
             broadcast({ command = 'done', playerName = entry.playerName, squireName = myName, })
@@ -350,7 +341,7 @@ local function processReactiveQueue()
                 end
 
                 -- Squire + Page local shortcut for self-arm
-                if (mode == "page" or mode == "both") and entry.playerName:lower() == myName:lower() then
+                if (currentMode == "page" or currentMode == "both") and entry.playerName:lower() == myName:lower() then
                     reBroadcastTimer = nil
                     lastWeaponPollTime = mq.gettime()
                     awaitingArm = false
@@ -364,44 +355,56 @@ local function processReactiveQueue()
         end
     end
 
-    -- Cleanup
-    local canCleanup = not deps.stopRequested() and not shouldAbortArming()
+    -- Capture state before cleanup -- external events (reset button, /squire reset) can
+    -- mutate stopRequested/aborted during mq.delay calls in the cleanup code below.
+    local wasStopped = deps.stopRequested()
+    local wasAborted = deps.aborted()
+    local canCleanup = not wasStopped and not shouldAbortArming()
 
-    if canCleanup then
+    -- Cursor safety net: runs on all non-stopped exits (cheap no-op when clean)
+    if canCleanup and mq.TLO.Cursor.ID() then
+        local cursorName = mq.TLO.Cursor.Name() or "unknown item"
+        mq.cmd("/autoinventory")
+        mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
         if mq.TLO.Cursor.ID() then
-            local cursorName = mq.TLO.Cursor.Name() or "unknown item"
-            mq.cmd("/autoinventory")
-            mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
-            if mq.TLO.Cursor.ID() then
-                local reason = string.format("'%s' stuck on cursor after cleanup", cursorName)
-                haltReason = reason
-                utils.output("\arHALTED: %s", reason)
-                mq.cmdf("/dgt [Squire] %s HALTED: %s - /squire reset to resume", myName, reason)
-                deps.setAborted(true)
-            end
+            local reason = string.format("'%s' stuck on cursor after cleanup", cursorName)
+            haltReason = reason
+            utils.output("\arHALTED: %s", reason)
+            mq.cmdf("/dgt [Squire] %s HALTED: %s - /squire reset to resume", myName, reason)
+            deps.setAborted(true)
+            wasAborted = true
         end
+    end
 
+    -- isTerminal computed after cursor cleanup (cursor-stuck sets wasAborted)
+    local isTerminal = #reactiveQueue == 0 or wasStopped or wasAborted
+
+    -- Restore/nav only on terminal exits to avoid churn on temporary blocks
+    if canCleanup and isTerminal then
         if not mq.TLO.Cursor.ID() then
             utils.restoreDisplacedItem()
         end
 
-        casting.restoreSpells(savedGems)
-        savedGems = nil
+        if savedGems then
+            casting.restoreSpells(savedGems)
+        end
 
         delivery.navToStart(deps.settings.allowMovement)
-
     end
 
-    -- Post-command fires even if cleanup was skipped (combat etc.), but not on explicit stop
-    if preFired and not deps.stopRequested() and deps.settings.postQueueCommand ~= "" then
-        mq.cmdf("%s", deps.settings.postQueueCommand)
+    -- Terminal exits: clear persistent state, fire post-command.
+    -- Temporary blocks (queue still has items): preserve state so next tick resumes cleanly.
+    if isTerminal then
+        savedGems = nil
+
+        if preFired and not wasStopped and not wasAborted and deps.settings.postQueueCommand ~= "" then
+            mq.cmdf("%s", deps.settings.postQueueCommand)
+        end
+
+        delivery.clearStartPosition()
+        preFired = false
     end
 
-    delivery.clearStartPosition()
-    preFired = false
-
-    local wasAborted = deps.aborted()
-    local wasStopped = deps.stopRequested()
     deps.setIsArming(false)
 
     if wasAborted then
@@ -423,7 +426,7 @@ function reactive.init(d)
 end
 
 function reactive.tick()
-    local mode = deps.settings.reactiveMode or "off"
+    local mode = deps.settings.reactiveMode
     if mode == "off" then return end
 
     -- Zone change: clear abort state and flush queue, let pages re-request
@@ -458,22 +461,21 @@ function reactive.tick()
 end
 
 function reactive.onStop()
+    utils.debugOutput("Reactive: stop requested (arming=%s, queue=%d)", tostring(currentlyArming), #reactiveQueue)
     if currentlyArming then
         broadcast({ command = 'release', playerName = currentlyArming, squireName = myName, })
         broadcast({ command = 'aborted', playerName = currentlyArming, squireName = myName, reason = 'stopped', })
         currentlyArming = nil
     end
-    reactiveQueue = {}
-    reactiveQueuedNames = Set.new({})
+    clearQueue()
     reBroadcastTimer = nil
     awaitingArm = false
     recentlyArmed = {}
     lastArmedPetId = {}
-    savedGems = nil
 end
 
 function reactive.onReset()
-    savedGems = nil
+    utils.debugOutput("Reactive: reset")
 end
 
 function reactive.onModeChange(oldMode, newMode)
@@ -485,8 +487,7 @@ function reactive.onModeChange(oldMode, newMode)
     end
 
     if (oldMode == "squire" or oldMode == "both") and newMode ~= "squire" and newMode ~= "both" then
-        reactiveQueue = {}
-        reactiveQueuedNames = Set.new({})
+        clearQueue()
     end
 
     if (newMode == "page" or newMode == "both") and oldMode ~= "page" and oldMode ~= "both" then
@@ -500,17 +501,10 @@ function reactive.getQueueCount()
 end
 
 function reactive.getBlockReason()
+    if deps.isArming() then return "already arming" end
+    if deps.aborted() then return "halted" end
+    if not deps.getSet(deps.settings.selectedSet) then return "no set selected" end
     return getBlockReason()
-end
-
-function reactive.isPageOnly()
-    local mode = deps and deps.settings.reactiveMode or "off"
-    return mode == "page"
-end
-
-function reactive.isPageActive()
-    local mode = deps and deps.settings.reactiveMode or "off"
-    return mode == "page" or mode == "both"
 end
 
 function reactive.broadcastWelcomeDone()
@@ -518,9 +512,7 @@ function reactive.broadcastWelcomeDone()
 end
 
 function reactive.updateSettings(newSettings)
-    if deps then
-        deps.settings = newSettings
-    end
+    deps.settings = newSettings
 end
 
 return reactive

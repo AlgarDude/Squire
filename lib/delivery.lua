@@ -130,12 +130,11 @@ local function handleRejections(givenItemIds, itemCount)
         local cursorId = mq.TLO.Cursor.ID()
         if givenItemIds[cursorId] then
             utils.debugOutput(" Destroying rejected item: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", cursorId)
-            mq.cmd("/destroy")
+            utils.destroyCursor()
         else
             utils.output("\ayUnexpected item on cursor (ID: %d) after give - autoinventorying.", cursorId)
-            mq.cmd("/autoinventory")
+            utils.autoinventory()
         end
-        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
     end
 end
 
@@ -187,21 +186,18 @@ local function batchGive(petSpawn, itemFuncs, abortFunc, navParams)
                 utils.debugOutput(" Item %d/%d: getItem failed", i, #itemFuncs)
             end
             if ok and abortFunc and abortFunc() then
-                mq.cmd("/autoinventory")
-                mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                utils.autoinventory()
                 allSuccess = false
                 break
             end
             if ok and mq.TLO.Cursor.ID() ~= itemFunc.id then
                 utils.output("\arWrong item on cursor (expected %d, got %d). Autoinventorying.", itemFunc.id, mq.TLO.Cursor.ID() or 0)
-                mq.cmd("/autoinventory")
-                mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                utils.autoinventory()
                 ok = false
             end
             if ok and not placeCursorItemInGiveWindow(petSpawn, navParams) then
                 utils.output("\arFailed to open GiveWnd. Autoinventorying cursor item.")
-                mq.cmd("/autoinventory")
-                mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                utils.autoinventory()
                 -- Pet is unavailable (combat, untargetable, out of range)
                 petUnavailable = true
                 allSuccess = false
@@ -280,20 +276,20 @@ function delivery.deliverCursor(entry, petSpawn, abortFunc, navParams)
         })
     end
 
-    local success, petUnavailable = batchGive(petSpawn, itemFuncs, abortFunc, navParams)
-    return success, petUnavailable
+    return batchGive(petSpawn, itemFuncs, abortFunc, navParams)
 end
 
 -- Bag Delivery
 
 local function findItemInBag(packSlot, itemId)
-    local container = mq.TLO.InvSlot("pack" .. packSlot).Item.Container()
+    local packItem = mq.TLO.InvSlot("pack" .. packSlot).Item
+    local container = packItem.Container()
     if not container or container == 0 then
         return nil
     end
 
     for s = 1, container do
-        if mq.TLO.InvSlot("pack" .. packSlot).Item.Item(s).ID() == itemId then
+        if packItem.Item(s).ID() == itemId then
             return s
         end
     end
@@ -324,8 +320,7 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc, navParams)
         if clicky and clicky.id and mq.TLO.Cursor.ID() ~= clicky.id then
             utils.output("\arExpected '%s' (ID: %d) on cursor but got '%s' (ID: %d). Autoinventorying.",
                 clicky.name, clicky.id, mq.TLO.Cursor.Name() or "?", mq.TLO.Cursor.ID() or 0)
-            mq.cmd("/autoinventory")
-            mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+            utils.autoinventory()
             return false
         end
 
@@ -424,7 +419,8 @@ end
 -- Bag Cleanup
 
 function delivery.cleanupBag(entry, freeSlot)
-    local bagId = mq.TLO.InvSlot("pack" .. freeSlot).Item.ID()
+    local packItem = mq.TLO.InvSlot("pack" .. freeSlot).Item
+    local bagId = packItem.ID()
     if not bagId then
         utils.debugOutput(" cleanupBag: pack%d already empty, nothing to clean", freeSlot)
         return
@@ -445,15 +441,14 @@ function delivery.cleanupBag(entry, freeSlot)
         end
     end
 
-    local container = mq.TLO.InvSlot("pack" .. freeSlot).Item.Container()
+    local container = packItem.Container()
     if not container or container == 0 then
         -- Not a container, just destroy it
         mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", freeSlot)
         mq.delay(1500, function() return mq.TLO.Cursor.ID() ~= nil end)
         if mq.TLO.Cursor.ID() then
             if mq.TLO.Cursor.ID() == bagId then
-                mq.cmd("/destroy")
-                mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                utils.destroyCursor()
             else
                 utils.output("\arUnexpected cursor item during cleanup (expected bag ID %d, got %d).", bagId, mq.TLO.Cursor.ID())
             end
@@ -464,7 +459,7 @@ function delivery.cleanupBag(entry, freeSlot)
     -- Check if any sub-items need saving (non-temporary and not in trash list)
     local hasPermanentItems = false
     for s = 1, container do
-        local subItem = mq.TLO.InvSlot("pack" .. freeSlot).Item.Item(s)
+        local subItem = packItem.Item(s)
         if subItem.ID() and not trashIds[subItem.ID()] and not subItem.NoRent() then
             hasPermanentItems = true
             break
@@ -474,7 +469,7 @@ function delivery.cleanupBag(entry, freeSlot)
     -- Only do per-item cleanup if there are permanent items to save
     if hasPermanentItems then
         for s = 1, container do
-            local subItemId = mq.TLO.InvSlot("pack" .. freeSlot).Item.Item(s).ID()
+            local subItemId = packItem.Item(s).ID()
             if subItemId then
                 mq.cmdf("/nomodkey /itemnotify in pack%d %d leftmouseup", freeSlot, s)
                 mq.delay(1500, function() return mq.TLO.Cursor.ID() ~= nil end)
@@ -483,12 +478,10 @@ function delivery.cleanupBag(entry, freeSlot)
                 else
                     if trashIds[mq.TLO.Cursor.ID()] or mq.TLO.Cursor.NoRent() then
                         utils.debugOutput("Destroying cleanup item: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", mq.TLO.Cursor.ID())
-                        mq.cmd("/destroy")
-                        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                        utils.destroyCursor()
                     else
                         utils.output("\ayPermanent item in bag (ID: %d) - autoinventorying.", mq.TLO.Cursor.ID())
-                        mq.cmd("/autoinventory")
-                        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+                        utils.autoinventory()
                     end
                 end
             end
@@ -510,8 +503,7 @@ function delivery.cleanupBag(entry, freeSlot)
 
     if mq.TLO.Cursor.ID() == bagId then
         utils.debugOutput("Destroying bag: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", bagId)
-        mq.cmd("/destroy")
-        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+        utils.destroyCursor()
     else
         utils.output("\arUnexpected cursor item when destroying bag (expected ID %d, got %d). Not destroying.", bagId, mq.TLO.Cursor.ID())
     end
@@ -544,8 +536,7 @@ function delivery.deliverTrade(entry, petSpawn, navParams)
     -- Place in GiveWnd and give
     if not placeCursorItemInGiveWindow(petSpawn, navParams) then
         utils.output("\arFailed to open GiveWnd for %s. Autoinventorying.", entry.name)
-        mq.cmd("/autoinventory")
-        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+        utils.autoinventory()
         return false, true
     end
 
@@ -561,8 +552,7 @@ function delivery.deliverTrade(entry, petSpawn, navParams)
     -- Rejected items are autoinventoried - these are the player's own items, not summoned disposables
     if mq.TLO.Cursor.ID() then
         utils.output("\ay%s was rejected by pet. Returning to inventory.", entry.name)
-        mq.cmd("/autoinventory")
-        mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+        utils.autoinventory()
         return false
     end
 

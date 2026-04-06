@@ -122,6 +122,24 @@ function utils.loadSettings()
     return settings
 end
 
+-- Spawn Helpers
+
+function utils.isFamiliar(spawn)
+    return (spawn.DisplayName() or ""):lower():find("familiar") ~= nil
+end
+
+-- Cursor Helpers
+
+function utils.autoinventory()
+    mq.cmd("/autoinventory")
+    mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+end
+
+function utils.destroyCursor()
+    mq.cmd("/destroy")
+    mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
+end
+
 -- Inventory
 
 function utils.findFreeTopSlot()

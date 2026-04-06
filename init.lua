@@ -13,7 +13,7 @@ local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 local reactive = require('squire.lib.reactive')
 
-local version = "0.9u"
+local version = "0.9v"
 
 -- Module-Level State
 
@@ -69,7 +69,7 @@ local rmOptions = {
 -- UI Temp State
 
 local showSettings = false
-local showEditSets = false
+local showManageSets = false
 local newSetName = ""
 local renameSetName = ""
 local manualPlayerName = ""
@@ -230,7 +230,7 @@ local function isPresetSet(setName)
     return presetSets[setName] ~= nil
 end
 
-local function getAllSetNames()
+local function getAllSetNames(useAliases)
     local names = {}
     for name in pairs(settings.sets) do
         table.insert(names, name)
@@ -241,27 +241,7 @@ local function getAllSetNames()
     local presetNames = {}
     for name in pairs(presetSets) do
         if not settings.sets[name] then
-            table.insert(presetNames, name)
-        end
-    end
-    table.sort(presetNames)
-    for _, name in ipairs(presetNames) do
-        table.insert(names, name)
-    end
-    return names
-end
-
-local function getTellSetNames()
-    local names = {}
-    for name in pairs(settings.sets) do
-        table.insert(names, name)
-    end
-    table.sort(names)
-
-    local presetNames = {}
-    for name in pairs(presetSets) do
-        if not settings.sets[name] then
-            table.insert(presetNames, presetAliasOf[name] or name)
+            table.insert(presetNames, useAliases and (presetAliasOf[name] or name) or name)
         end
     end
     table.sort(presetNames)
@@ -296,7 +276,7 @@ local function armPet(playerName, setName, fromTell, abortCheck)
         return true, "skipped"
     end
 
-    if (petSpawn.DisplayName() or ""):lower():find("familiar") then
+    if utils.isFamiliar(petSpawn) then
         utils.output("\ay%s pet is a familiar. Skipping.", petDisplayName(playerName))
         return true, "skipped"
     end
@@ -318,7 +298,7 @@ local function armPet(playerName, setName, fromTell, abortCheck)
     local cursorResult, cursorReason = utils.clearCursor(hasBagMethod)
     if cursorResult == "abort" then
         utils.output("\arCursor stuck. Aborting.")
-        return false, cursorReason or "cursor stuck"
+        return false, cursorReason
     end
 
     -- Free top slot for bag methods
@@ -464,7 +444,7 @@ local function addToQueue(playerName, setName, fromTell)
         return
     end
 
-    if (petSpawn.DisplayName() or ""):lower():find("familiar") then
+    if utils.isFamiliar(petSpawn) then
         utils.output("\ay%s pet is a familiar. Skipping.", petDisplayName(playerName))
         if fromTell and settings.tellReplies then
             mq.cmdf("/tell %s Your pet appears to be a familiar.", playerName)
@@ -472,7 +452,7 @@ local function addToQueue(playerName, setName, fromTell)
         return
     end
 
-    if (petSpawn.Distance3D() or 999) > (settings.navDistance or 100) then
+    if (petSpawn.Distance3D() or 999) > settings.navDistance then
         utils.output("\ay%s pet is out of range. Skipping.", petDisplayName(playerName))
         if fromTell and settings.tellReplies then
             mq.cmdf("/tell %s Your pet is out of range.", playerName)
@@ -482,7 +462,7 @@ local function addToQueue(playerName, setName, fromTell)
 
     local resolvedSetName = setName or settings.selectedSet
     if not getSet(resolvedSetName) then
-        local available = table.concat(getTellSetNames(), ", ")
+        local available = table.concat(getAllSetNames(true), ", ")
         utils.output("\arSet '%s' not found. Available sets: %s", resolvedSetName, available)
         if fromTell and settings.tellReplies then
             mq.cmdf('/tell %s Set "%s" not found. Available sets: %s', playerName, resolvedSetName, available)
@@ -504,19 +484,11 @@ local function addToQueue(playerName, setName, fromTell)
     end
 end
 
-local function saveCurrentGems()
-    local gems = {}
-    for i = 1, me.NumGems() do
-        gems[i] = me.Gem(i)() or ""
-    end
-    return gems
-end
-
 local function processQueue()
     if isArming or #queue == 0 then return end
 
     if not savedGems then
-        savedGems = saveCurrentGems()
+        savedGems = casting.saveCurrentGems()
     end
 
     isArming = true
@@ -591,9 +563,6 @@ end
 
 -- Access Check
 
-local registerTellEvent
-local unregisterTellEvent
-
 local function isAllowedSender(senderName)
     if settings.tellAccess == "anyone" then
         return true
@@ -618,14 +587,14 @@ local function isAllowedSender(senderName)
         local member = me.Fellowship.Member(senderName)
         return member() ~= nil
     elseif settings.tellAccess == "allowlist" then
-        for _, name in ipairs(settings.tellAllowlist or {}) do
+        for _, name in ipairs(settings.tellAllowlist) do
             if name:lower() == senderName:lower() then
                 return true
             end
         end
         return false
     elseif settings.tellAccess == "denylist" then
-        for _, name in ipairs(settings.tellDenylist or {}) do
+        for _, name in ipairs(settings.tellDenylist) do
             if name:lower() == senderName:lower() then
                 utils.output("\ay%s is on the deny list. Ignoring request.", senderName)
                 return false
@@ -634,6 +603,25 @@ local function isAllowedSender(senderName)
         return true
     end
     return false
+end
+
+local function registerTellEvent()
+    mq.event('squireRequest', "#1# tells you, '#2#'", function(line, sender, message)
+        if not message then return end
+        if sender:lower() == me.DisplayName():lower() then return end
+        local trimmed = message:gsub("^%s+", ""):gsub("%s+$", "")
+        local triggerLower = settings.triggerWord:lower()
+
+        if triggerLower == "" or trimmed:lower():find(triggerLower, 1, true) ~= 1 then return end
+        if not isAllowedSender(sender) then return end
+
+        local afterTrigger = trimmed:sub(#settings.triggerWord + 1):gsub("^%s+", ""):gsub("%s+$", "")
+        addToQueue(sender, afterTrigger ~= "" and afterTrigger or nil, true)
+    end)
+end
+
+local function unregisterTellEvent()
+    mq.unevent('squireRequest')
 end
 
 -- Command System
@@ -664,7 +652,7 @@ commands = {
                 local t = mq.TLO.Target
                 if not t() or t.Type() ~= "PC" then
                     utils.output("\ayTarget is not a PC.")
-                elseif not t.Pet() or t.Pet.ID() == 0 then
+                elseif (t.Pet.ID() or 0) == 0 then
                     utils.output("\ay%s does not have a pet.", t.DisplayName())
                 else
                     addToQueue(t.DisplayName(), setName, false)
@@ -958,7 +946,7 @@ local function renderSourceHeaderControls(currentSet, idx, headerCursorPos, head
             editSourceType = entry.type
             editSourceName = entry.name
             editSourceMethod = entry.method
-            editSourceClicky = entry.clicky or false
+            editSourceClicky = entry.clicky
             editSourceClickyItem = entry.clickyItem and { id = entry.clickyItem.id, name = entry.clickyItem.name, icon = entry.clickyItem.icon, } or nil
         end
 
@@ -1111,8 +1099,7 @@ local function renderMainWindow()
     if shouldDraw then
         renderWindowBg()
         local contentStartPos = imgui.GetCursorPosVec()
-        local allNames = getAllSetNames()
-        local pageOnly = reactive.isPageOnly()
+        local pageOnly = settings.reactiveMode == "page"
 
         -- Status
         imgui.Text("Status:")
@@ -1150,7 +1137,7 @@ local function renderMainWindow()
         local comboLabel = settings.selectedSet ~= "" and settings.selectedSet or "No Sets Found"
         if settings.selectedSet == "" then imgui.PushStyleColor(ImGuiCol.Text, ImVec4(0.5, 0.5, 0.5, 1.0)) end
         if imgui.BeginCombo("##SetCombo", comboLabel) then
-            for _, name in ipairs(allNames) do
+            for _, name in ipairs(getAllSetNames()) do
                 if imgui.Selectable(name, name == settings.selectedSet) then
                     settings.selectedSet = name
                     settingsDirty = true
@@ -1164,7 +1151,7 @@ local function renderMainWindow()
         if settings.selectedSet == "" then imgui.PopStyleColor() end
         imgui.SameLine()
         if imgui.Button("Manage") then
-            showEditSets = not showEditSets
+            showManageSets = not showManageSets
         end
 
         imgui.SeparatorText("Arming")
@@ -1278,7 +1265,7 @@ local function renderSettingsWindow()
             imgui.TextColored(1, 0.3, 0.3, 1, "No set selected - reactive arming disabled.")
         end
 
-        local pageOnly = reactive.isPageOnly()
+        local pageOnly = settings.reactiveMode == "page"
         if pageOnly then imgui.BeginDisabled() end
 
         local taIndex = findIndex(tellAccessOptions, settings.tellAccess)
@@ -1311,7 +1298,7 @@ local function renderSettingsWindow()
         if changed then settingsDirty = true end
 
         if settings.tellAccess == "allowlist" then
-            local alStr = table.concat(settings.tellAllowlist or {}, ", ")
+            local alStr = table.concat(settings.tellAllowlist, ", ")
             imgui.SetNextItemWidth(350)
             alStr, changed = imgui.InputTextWithHint("##allowList", "Player1, Player2", alStr)
             if changed then
@@ -1332,7 +1319,7 @@ local function renderSettingsWindow()
         end
 
         if settings.tellAccess == "denylist" then
-            local dlStr = table.concat(settings.tellDenylist or {}, ", ")
+            local dlStr = table.concat(settings.tellDenylist, ", ")
             imgui.SetNextItemWidth(350)
             dlStr, changed = imgui.InputTextWithHint("##denyList", "Player1, Player2", dlStr)
             if changed then
@@ -1423,23 +1410,21 @@ local function renderSettingsWindow()
 
         if pageOnly then imgui.EndDisabled() end
 
-        if not reactive.isPageActive() then imgui.BeginDisabled() end
+        local pageActive = settings.reactiveMode == "page" or settings.reactiveMode == "both"
+        if not pageActive then imgui.BeginDisabled() end
         settings.alwaysRequestArming, changed = imgui.Checkbox("My Pet Appears Armed When Summoned", settings.alwaysRequestArming)
         if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
             imgui.SetTooltip(
                 "Squire checks for visible weapons to determine if a pet needs arming.\nIf your pet appears armed when summoned (e.g., enchanter animations),\ncheck this option to request arming in page mode anyway.\nDoes not affect the current pet.")
         end
         if changed then settingsDirty = true end
-        if not reactive.isPageActive() then imgui.EndDisabled() end
+        if not pageActive then imgui.EndDisabled() end
 
         settings.debugMode, changed = imgui.Checkbox("Debug Logging", settings.debugMode)
         if changed then
             utils.debugMode = settings.debugMode
             settingsDirty = true
         end
-
-        local headColor = ImVec4(0.6, 0.85, 1.0, 1.0)
-        local bodyColor = ImVec4(0.78, 0.74, 0.6, 1.0)
 
         imgui.NewLine()
         imgui.PushStyleColor(ImGuiCol.Text, headColor)
@@ -1507,11 +1492,10 @@ end
 local function renderManageSetsWindow()
     imgui.SetNextWindowSize(ImVec2(520, 450), ImGuiCond.FirstUseEver)
     imgui.SetNextWindowSizeConstraints(ImVec2(520, 200), ImVec2(800, 2000))
-    local editSetsDraw
-    showEditSets, editSetsDraw = imgui.Begin("Manage Sets###SquireEditSets", showEditSets)
-    if editSetsDraw then
+    local manageSetsDraw
+    showManageSets, manageSetsDraw = imgui.Begin("Manage Sets###SquireEditSets", showManageSets)
+    if manageSetsDraw then
         renderWindowBg()
-        local allNames = getAllSetNames()
         local isPreset = isPresetSet(settings.selectedSet)
 
         -- Row 1: Set selector + right-aligned Rescan/Help
@@ -1519,7 +1503,7 @@ local function renderManageSetsWindow()
         imgui.SameLine()
         imgui.SetNextItemWidth(200)
         if imgui.BeginCombo("##EditSetCombo", settings.selectedSet) then
-            for _, name in ipairs(allNames) do
+            for _, name in ipairs(getAllSetNames()) do
                 if imgui.Selectable(name .. "##edit", name == settings.selectedSet) then
                     settings.selectedSet = name
                     settingsDirty = true
@@ -1606,7 +1590,7 @@ local function renderManageSetsWindow()
                                     name = entry.name,
                                     type = entry.type,
                                     method = entry.method,
-                                    clicky = entry.clicky or false,
+                                    clicky = entry.clicky,
                                     clickyItem = entry.clickyItem and { id = entry.clickyItem.id, name = entry.clickyItem.name, icon = entry.clickyItem.icon, } or nil,
                                     items = {},
                                     trashItems = {},
@@ -2077,9 +2061,6 @@ local function renderHelpWindow()
     if helpDraw then
         renderWindowBg()
 
-        local headColor = ImVec4(0.6, 0.85, 1.0, 1.0)
-        local bodyColor = ImVec4(0.78, 0.74, 0.6, 1.0)
-
         imgui.PushStyleColor(ImGuiCol.Text, headColor)
         imgui.SeparatorText("Glossary")
         imgui.PopStyleColor()
@@ -2170,7 +2151,7 @@ local function renderUI()
 
     renderMainWindow()
     if showSettings then renderSettingsWindow() end
-    if showEditSets then renderManageSetsWindow() end
+    if showManageSets then renderManageSetsWindow() end
     if showAddSource then renderAddSourceWindow() end
     if editingIdx then renderEditSourceWindow() end
     if showHelp then renderHelpWindow() end
@@ -2252,24 +2233,6 @@ startup()
 
 mq.imgui.init('Squire', renderUI)
 mq.bind('/squire', commandHandler)
-registerTellEvent = function()
-    mq.event('squireRequest', "#1# tells you, '#2#'", function(line, sender, message)
-        if not message then return end
-        if sender:lower() == me.DisplayName():lower() then return end
-        local trimmed = message:gsub("^%s+", ""):gsub("%s+$", "")
-        local triggerLower = settings.triggerWord:lower()
-
-        if triggerLower == "" or trimmed:lower():find(triggerLower, 1, true) ~= 1 then return end
-        if not isAllowedSender(sender) then return end
-
-        local afterTrigger = trimmed:sub(#settings.triggerWord + 1):gsub("^%s+", ""):gsub("%s+$", "")
-        addToQueue(sender, afterTrigger ~= "" and afterTrigger or nil, true)
-    end)
-end
-
-unregisterTellEvent = function()
-    mq.unevent('squireRequest')
-end
 
 if settings.tellAccess ~= "disabled" then
     registerTellEvent()
