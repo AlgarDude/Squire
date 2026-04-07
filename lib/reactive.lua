@@ -284,8 +284,11 @@ local function processReactiveQueue()
             broadcast({ command = 'done', playerName = entry.playerName, squireName = myName, })
             recentlyArmed[entry.playerName:lower()] = mq.gettime() + 5000
         else
-            if not preFired and deps.settings.preQueueCommand ~= "" then
-                mq.cmdf("%s", deps.settings.preQueueCommand)
+            if not preFired then
+                if deps.settings.preQueueCommand ~= "" then
+                    mq.cmdf("%s", deps.settings.preQueueCommand)
+                end
+                utils.announce(deps.settings.announceArming, "Arming pets - please hold.")
                 preFired = true
             end
 
@@ -397,8 +400,11 @@ local function processReactiveQueue()
     if isTerminal then
         savedGems = nil
 
-        if preFired and not wasStopped and not wasAborted and deps.settings.postQueueCommand ~= "" then
-            mq.cmdf("%s", deps.settings.postQueueCommand)
+        if preFired and not wasStopped and not wasAborted then
+            if deps.settings.postQueueCommand ~= "" then
+                mq.cmdf("%s", deps.settings.postQueueCommand)
+            end
+            utils.announce(deps.settings.announceArming, "Finished arming.")
         end
 
         delivery.clearStartPosition()

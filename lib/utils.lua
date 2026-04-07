@@ -42,6 +42,23 @@ function utils.debugOutput(msg, ...)
     end
 end
 
+function utils.announce(channel, msg, ...)
+    if channel == "disabled" then return end
+    local text = string.format("[Squire] " .. msg, ...)
+    if channel == "dannet" then
+        mq.cmdf("/dgt zone_%s_%s %s",
+            (mq.TLO.EverQuest.Server() or ""):gsub(" ", ""),
+            mq.TLO.Zone.ShortName() or "unknown",
+            text)
+    elseif channel == "e3bcs" then
+        mq.cmdf("/e3bcza %s", text)
+    elseif channel == "raid" then
+        mq.cmdf("/rsay %s", text)
+    elseif channel == "group" then
+        mq.cmdf("/g %s", text)
+    end
+end
+
 -- Settings
 
 local characterName = mq.TLO.Me.Name()
@@ -75,9 +92,10 @@ local function defaultSettings()
         tellReplies = true,
         allowMovement = false,
         alwaysRequestArming = false,
-        navDistance = 100,
-        preQueueCommand = "",
-        postQueueCommand = "",
+        navDistance = 200,
+        preQueueCommand = "/rgl pause",
+        postQueueCommand = "/rgl unpause",
+        announceArming = "disabled",
         reactiveMode = "page",
         welcomeDone = false,
         sets = {},

@@ -13,7 +13,7 @@ local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 local reactive = require('squire.lib.reactive')
 
-local version = "0.9v"
+local version = "1.0"
 
 -- Module-Level State
 
@@ -496,6 +496,7 @@ local function processQueue()
     if settings.preQueueCommand ~= "" then
         mq.cmdf("%s", settings.preQueueCommand)
     end
+    utils.announce(settings.announceArming, "Arming pets - please hold.")
 
     local processed = 0
 
@@ -547,6 +548,9 @@ local function processQueue()
 
         if settings.postQueueCommand ~= "" then
             mq.cmdf("%s", settings.postQueueCommand)
+        end
+        if not aborted then
+            utils.announce(settings.announceArming, "Finished arming.")
         end
     end
     savedGems = nil
@@ -635,7 +639,8 @@ local function queuePetOwners(getMember, startIndex, count, setName)
     end
 end
 
-local commandOrder = { "help", "arm", "stop", "mode", "show", "hide", "tellaccess", "debug", "reset", }
+local commandOrder = { "help", "stop", "reset", "show", "hide", "debug", "arm", "mode", "tellaccess", }
+local commandsExpanded = false
 
 local commands
 commands = {
@@ -778,7 +783,7 @@ commands = {
     },
     reset = {
         usage = "/squire reset",
-        about = "Clear aborted state and reset status",
+        about = "Resume after a halt or error",
         handler = function(args)
             aborted = false
             stopRequested = false
@@ -789,12 +794,15 @@ commands = {
     },
     help = {
         usage = "/squire help",
-        about = "Show this help",
+        about = "Print the command list to chat",
         handler = function(args)
-            utils.output("Commands:")
+            utils.output("Commands: /squire ...")
             for _, name in ipairs(commandOrder) do
-                local cmd = commands[name]
-                utils.output("  %s - %s", cmd.usage, cmd.about)
+                if name ~= "help" then
+                    local cmd = commands[name]
+                    local shortUsage = cmd.usage:gsub("^/squire ", "")
+                    utils.output("  %s - %s", shortUsage, cmd.about)
+                end
             end
         end,
     },
@@ -830,10 +838,11 @@ local function renderItemIcon(icon)
     imgui.SameLine()
 end
 
-local function renderWindowBg()
+local function renderWindowBg(fixedHeight)
     if not bgTexture then return end
     local startPos = imgui.GetCursorPosVec()
-    local availW, availH = imgui.GetContentRegionAvail()
+    local availW = imgui.GetContentRegionAvail()
+    local availH = fixedHeight and (fixedHeight - startPos.y) or select(2, imgui.GetContentRegionAvail())
     local imgSize = math.min(availW, availH)
     local offsetX = (availW - imgSize) * 0.5
     local offsetY = (availH - imgSize) * 0.5
@@ -1227,12 +1236,12 @@ local function renderMainWindow()
 end
 
 local function renderSettingsWindow()
-    imgui.SetNextWindowSize(ImVec2(445, 465), ImGuiCond.FirstUseEver)
-    imgui.SetNextWindowSizeConstraints(ImVec2(445, 465), ImVec2(800, 2000))
+    local settingsHeight = commandsExpanded and 620 or 440
+    imgui.SetNextWindowSize(ImVec2(420, settingsHeight), ImGuiCond.Always)
     local settingsDraw
-    showSettings, settingsDraw = imgui.Begin("Squire Settings###SquireSettings", showSettings)
+    showSettings, settingsDraw = imgui.Begin("Squire Settings###SquireSettings", showSettings, ImGuiWindowFlags.NoResize)
     if settingsDraw then
-        renderWindowBg()
+        renderWindowBg(440)
         local changed
 
         imgui.SetNextItemWidth(200)
@@ -1268,6 +1277,8 @@ local function renderSettingsWindow()
         local pageOnly = settings.reactiveMode == "page"
         if pageOnly then imgui.BeginDisabled() end
 
+        imgui.Separator()
+
         local taIndex = findIndex(tellAccessOptions, settings.tellAccess)
         imgui.SetNextItemWidth(200)
         if imgui.BeginCombo("##tellAccess", tellAccessOptions[taIndex].label) then
@@ -1290,7 +1301,11 @@ local function renderSettingsWindow()
         if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
             imgui.SetTooltip("Who can request arming via tell.")
         end
-        imgui.SameLine(0, 30)
+        imgui.SameLine()
+        local startX = imgui.GetCursorPosX()
+        local endX = imgui.GetWindowWidth() - imgui.GetStyle().WindowPadding.x
+        local checkboxWidth = imgui.GetFrameHeight() + imgui.GetStyle().ItemInnerSpacing.x + imgui.CalcTextSize("Tell Replies")
+        imgui.SetCursorPosX(startX + (endX - startX - checkboxWidth) / 2)
         settings.tellReplies, changed = imgui.Checkbox("Tell Replies", settings.tellReplies)
         if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
             imgui.SetTooltip("Reply to players who request arming.")
@@ -1353,6 +1368,32 @@ local function renderSettingsWindow()
             imgui.SetTooltip("Keyword in a tell that triggers arming.\nExample: /tell YourName %s [Set Name]", example)
         end
 
+        imgui.Separator()
+
+        local announceOptions = {
+            { key = "disabled", label = "Disabled", },
+            { key = "group",    label = "Group", },
+            { key = "raid",     label = "Raid", },
+            { key = "dannet",   label = "DanNet", },
+            { key = "e3bcs",    label = "E3BCS", },
+        }
+        local aaIndex = findIndex(announceOptions, settings.announceArming)
+        imgui.SetNextItemWidth(200)
+        if imgui.BeginCombo("##announceArming", announceOptions[aaIndex].label) then
+            for _, opt in ipairs(announceOptions) do
+                if imgui.Selectable(opt.label, opt.key == settings.announceArming) then
+                    settings.announceArming = opt.key
+                    settingsDirty = true
+                end
+            end
+            imgui.EndCombo()
+        end
+        imgui.SameLine()
+        imgui.Text("Announce Arming")
+        if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
+            imgui.SetTooltip("Announce when arming starts and finishes.")
+        end
+
         imgui.SetNextItemWidth(200)
         local pqc
         pqc, changed = imgui.InputTextWithHint("##preQueueCmd", "/echo Arming started", settings.preQueueCommand)
@@ -1378,6 +1419,8 @@ local function renderSettingsWindow()
         if imgui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) then
             imgui.SetTooltip("Execute this command once arming is complete (or aborted).")
         end
+
+        imgui.Separator()
 
         if not delivery.navLoaded then imgui.BeginDisabled() end
         settings.allowMovement, changed = imgui.Checkbox("Nav to Pets", settings.allowMovement)
@@ -1428,19 +1471,26 @@ local function renderSettingsWindow()
 
         imgui.NewLine()
         imgui.PushStyleColor(ImGuiCol.Text, headColor)
-        imgui.SeparatorText("Commands")
+        commandsExpanded = imgui.CollapsingHeader("Commands: /squire ...")
         imgui.PopStyleColor()
-        imgui.Spacing()
-        local _, availY = imgui.GetContentRegionAvail()
-        imgui.BeginChild("##CommandsScroll", ImVec2(0, availY - 80), 0)
-        imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
-        for _, name in ipairs(commandOrder) do
-            local cmd = commands[name]
-            imgui.Bullet()
-            imgui.TextWrapped("%s - %s", cmd.usage, cmd.about)
+        if commandsExpanded then
+            local cmdUsageColor = ImVec4(0.5, 0.72, 0.85, 1.0)
+            imgui.PushTextWrapPos(0)
+            for _, name in ipairs(commandOrder) do
+                local cmd = commands[name]
+                local shortUsage = cmd.usage:gsub("^/squire ", "")
+                imgui.Indent(10)
+                imgui.PushStyleColor(ImGuiCol.Text, cmdUsageColor)
+                imgui.Text("%s", shortUsage)
+                imgui.PopStyleColor()
+                imgui.SameLine(0, 0)
+                imgui.PushStyleColor(ImGuiCol.Text, bodyColor)
+                imgui.Text(" - %s", cmd.about)
+                imgui.PopStyleColor()
+                imgui.Unindent(10)
+            end
+            imgui.PopTextWrapPos()
         end
-        imgui.PopStyleColor()
-        imgui.EndChild()
 
         -- Logo and credits at bottom
         imgui.SetCursorPosY(imgui.GetWindowHeight() - 75 - imgui.GetStyle().WindowPadding.y)
@@ -2223,7 +2273,7 @@ local function startup()
         utils.output("Started in Page mode - UI hidden. Type /squire show to reopen.")
     end
 
-    utils.output("by \aoAlgar\ax (\a-tgithub.com/AlgarDude/Squire\ax)")
+    utils.output("v%s by \aoAlgar\ax (\a-tgithub.com/AlgarDude/Squire\ax)", version)
     utils.output("Use \ag/squire help\ax for a list of commands.")
 end
 
