@@ -362,13 +362,20 @@ local function processReactiveQueue()
     -- mutate stopRequested/aborted during mq.delay calls in the cleanup code below.
     local wasStopped = deps.stopRequested()
     local wasAborted = deps.aborted()
-    local canCleanup = not wasStopped and not shouldAbortArming()
+    local canCleanup = not wasStopped
 
-    -- Cursor safety net: runs on all non-stopped exits (cheap no-op when clean)
+    -- Cursor safety net: destroy summoned junk, autoinventory anything else
     if canCleanup and mq.TLO.Cursor.ID() then
         local cursorName = mq.TLO.Cursor.Name() or "unknown item"
-        mq.cmd("/autoinventory")
-        mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+        local cursorId = mq.TLO.Cursor.ID()
+        if mq.TLO.Cursor.NoRent() and cursorId == utils.getLastSummonedItemId() then
+            utils.debugOutput("Cleanup: destroying summoned item '%s' (ID: %d)", cursorName, cursorId)
+            utils.destroyCursor()
+        else
+            utils.debugOutput("Cleanup: autoinventorying '%s' (ID: %d)", cursorName, cursorId)
+            mq.cmd("/autoinventory")
+            mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+        end
         if mq.TLO.Cursor.ID() then
             local reason = string.format("'%s' stuck on cursor after cleanup", cursorName)
             haltReason = reason
@@ -399,12 +406,15 @@ local function processReactiveQueue()
     -- Temporary blocks (queue still has items): preserve state so next tick resumes cleanly.
     if isTerminal then
         savedGems = nil
+        utils.clearLastSummonedItemId()
 
-        if preFired and not wasStopped and not wasAborted then
+        if preFired then
             if deps.settings.postQueueCommand ~= "" then
                 mq.cmdf("%s", deps.settings.postQueueCommand)
             end
-            utils.announce(deps.settings.announceArming, "Finished arming.")
+            if not wasStopped and not wasAborted then
+                utils.announce(deps.settings.announceArming, "Finished arming.")
+            end
         end
 
         delivery.clearStartPosition()

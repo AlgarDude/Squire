@@ -8,6 +8,7 @@ local mq = require('mq')
 local utils = {}
 
 local displacedItem = nil
+local lastSummonedItemId = nil
 
 -- Polling
 
@@ -314,6 +315,18 @@ function utils.restoreDisplacedItem()
     end
 
     utils.debugOutput("restoreDisplacedItem: restored item to pack%d", info.sourceSlot)
+end
+
+function utils.setLastSummonedItemId(id)
+    lastSummonedItemId = id
+end
+
+function utils.getLastSummonedItemId()
+    return lastSummonedItemId
+end
+
+function utils.clearLastSummonedItemId()
+    lastSummonedItemId = nil
 end
 
 function utils.ensureFreeTopSlot()

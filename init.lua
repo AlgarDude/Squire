@@ -523,14 +523,20 @@ local function processQueue()
     end
 
     -- Cleanup
-    if stopRequested then
-        delivery.clearStartPosition()
-    else
+    if not stopRequested then
         if mq.TLO.Cursor.ID() then
-            mq.cmd("/autoinventory")
-            mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+            local cursorName = mq.TLO.Cursor.Name() or "unknown item"
+            local cursorId = mq.TLO.Cursor.ID()
+            if mq.TLO.Cursor.NoRent() and cursorId == utils.getLastSummonedItemId() then
+                utils.debugOutput("Cleanup: destroying summoned item '%s' (ID: %d)", cursorName, cursorId)
+                utils.destroyCursor()
+            else
+                utils.debugOutput("Cleanup: autoinventorying '%s' (ID: %d)", cursorName, cursorId)
+                mq.cmd("/autoinventory")
+                mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
+            end
             if mq.TLO.Cursor.ID() then
-                utils.output("\arCursor still stuck after autoinventory. Aborting.")
+                utils.output("\arCursor still stuck after cleanup. Aborting.")
                 aborted = true
             end
         end
@@ -544,16 +550,18 @@ local function processQueue()
         end
 
         delivery.navToStart(settings.allowMovement)
-        delivery.clearStartPosition()
+    end
 
-        if settings.postQueueCommand ~= "" then
-            mq.cmdf("%s", settings.postQueueCommand)
-        end
-        if not aborted then
-            utils.announce(settings.announceArming, "Finished arming.")
-        end
+    delivery.clearStartPosition()
+
+    if settings.postQueueCommand ~= "" then
+        mq.cmdf("%s", settings.postQueueCommand)
+    end
+    if not aborted and not stopRequested then
+        utils.announce(settings.announceArming, "Finished arming.")
     end
     savedGems = nil
+    utils.clearLastSummonedItemId()
 
     local wasStopped = stopRequested
     isArming = false

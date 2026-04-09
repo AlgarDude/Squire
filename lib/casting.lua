@@ -180,6 +180,8 @@ function casting.useSource(entry, abortFunc)
             return false
         end
 
+        utils.setLastSummonedItemId(mq.TLO.Spell(entry.name).Base(1)())
+
         for attempt = 1, 3 do
             if abortFunc and abortFunc() then return false end
             utils.debugOutput("Casting spell '%s' from gem %d", entry.name, gem)
@@ -206,6 +208,9 @@ function casting.useSource(entry, abortFunc)
             return false
         end
 
+        local aa = mq.TLO.Me.AltAbility(entry.name)
+        local aaSpell = aa and aa.Spell
+        utils.setLastSummonedItemId(aaSpell and aaSpell.Base(1)())
         utils.debugOutput("Using AA '%s'", entry.name)
         mq.cmdf("/aa act %s", entry.name)
         casting.waitForCastComplete(abortFunc)
@@ -217,6 +222,10 @@ function casting.useSource(entry, abortFunc)
             return false
         end
 
+        local findItem = mq.TLO.FindItem("=" .. entry.name)
+        local clicky = findItem and findItem.Clicky
+        local itemSpell = clicky and clicky.Spell
+        utils.setLastSummonedItemId(itemSpell and itemSpell.Base(1)())
         utils.debugOutput("Using item '%s'", entry.name)
         mq.cmdf('/useitem "%s"', entry.name)
         casting.waitForCastComplete(abortFunc)
