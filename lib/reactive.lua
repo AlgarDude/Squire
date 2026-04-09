@@ -402,23 +402,23 @@ local function processReactiveQueue()
         delivery.navToStart(deps.settings.allowMovement)
     end
 
-    -- Terminal exits: clear persistent state, fire post-command.
+    -- Pre/post commands must always pair (e.g., /rgl pause must always get /rgl unpause)
+    if preFired then
+        if deps.settings.postQueueCommand ~= "" then
+            mq.cmdf("%s", deps.settings.postQueueCommand)
+        end
+        if isTerminal and not wasStopped and not wasAborted then
+            utils.announce(deps.settings.announceArming, "Finished arming.")
+        end
+        preFired = false
+    end
+
+    -- Terminal exits: clear persistent state.
     -- Temporary blocks (queue still has items): preserve state so next tick resumes cleanly.
     if isTerminal then
         savedGems = nil
         utils.clearLastSummonedItemId()
-
-        if preFired then
-            if deps.settings.postQueueCommand ~= "" then
-                mq.cmdf("%s", deps.settings.postQueueCommand)
-            end
-            if not wasStopped and not wasAborted then
-                utils.announce(deps.settings.announceArming, "Finished arming.")
-            end
-        end
-
         delivery.clearStartPosition()
-        preFired = false
     end
 
     deps.setIsArming(false)
