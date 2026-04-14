@@ -32,17 +32,15 @@ function casting.memorizeSpell(gemSlot, spellName, abortFunc)
         end
     end
 
-    if (me.CombatState() or ""):lower() == "combat" then
-        utils.output("\arCannot memorize %s during combat.", spellName)
-        return false
-    end
-
     utils.debugOutput("Memorizing %s in gem %d...", spellName, gemSlot)
     mq.cmdf('/memspell %d "%s"', gemSlot, spellName)
 
     -- Wait for spell to appear in gem
+    local spellBook = mq.TLO.Window('SpellBookWnd')
+    local bookEverOpened = false
     local maxWait = 25000
     while maxWait > 0 do
+        -- Gem check first: book-close and gem-fill land in the same tick on success
         if me.Gem(gemSlot)() == spellName then break end
 
         if abortFunc and abortFunc() then
@@ -50,8 +48,15 @@ function casting.memorizeSpell(gemSlot, spellName, abortFunc)
             return false
         end
 
-        if (me.CombatState() or ""):lower() == "combat" or me.Casting() or me.Moving() then
+        if me.Casting() or me.Moving() then
             utils.output("\arMemorization of %s interrupted.", spellName)
+            return false
+        end
+
+        if spellBook.Open() then
+            bookEverOpened = true
+        elseif bookEverOpened then
+            utils.output("\arMemorization of %s interrupted (spellbook closed).", spellName)
             return false
         end
 
@@ -127,10 +132,11 @@ function casting.saveCurrentGems()
     return gems
 end
 
-function casting.restoreSpells(savedGems)
+function casting.restoreSpells(savedGems, abortFunc)
     for gemSlot, spellName in pairs(savedGems) do
+        if abortFunc and abortFunc() then return end
         if spellName ~= "" and me.Gem(gemSlot)() ~= spellName then
-            casting.memorizeSpell(gemSlot, spellName)
+            casting.memorizeSpell(gemSlot, spellName, abortFunc)
         end
     end
 end

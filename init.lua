@@ -429,6 +429,11 @@ end
 
 -- Queue & Processing
 
+local function clearQueue()
+    queue = {}
+    queuedNames = Set.new({})
+end
+
 local function addToQueue(playerName, setName, fromTell)
     if aborted then
         utils.output("\arArming halted. Use /squire reset to resume.")
@@ -496,14 +501,33 @@ local function processQueue()
     if settings.preQueueCommand ~= "" then
         mq.cmdf("%s", settings.preQueueCommand)
     end
+
+    -- Deferred from a prior paused queue: restore anything left in a temp slot
+    -- before the new queue potentially displaces something else.
+    utils.restoreDisplacedItem()
+
     utils.announce(settings.announceArming, "Arming pets - please hold.")
 
     local processed = 0
+    local pauseReason = nil
+    local haltReason = nil
+    local abortFired = false
+    local abortCheck = function()
+        if not abortFired and utils.shouldAbortArming() then
+            abortFired = true
+            pauseReason = utils.getHardBlockReason() or "environmental block"
+        end
+        return abortFired
+    end
 
     while #queue > 0 do
         if stopRequested then
-            queue = {}
-            queuedNames = Set.new({})
+            clearQueue()
+            break
+        end
+
+        if abortCheck() then
+            clearQueue()
             break
         end
 
@@ -512,18 +536,28 @@ local function processQueue()
         processed = processed + 1
         statusText = string.format("Arming pet %d/%d: %s pet...", processed, processed + #queue, petDisplayName(request.playerName))
 
-        local result = armPet(request.playerName, request.setName, request.fromTell)
+        local result, status = armPet(request.playerName, request.setName, request.fromTell, abortCheck)
 
-        if not result then
+        if abortFired then
+            clearQueue()
+            break
+        elseif not result then
             aborted = true
-            queue = {}
-            queuedNames = Set.new({})
+            haltReason = status or "unknown error"
+            clearQueue()
             break
         end
     end
 
-    -- Cleanup
-    if not stopRequested then
+    -- Capture state before cleanup -- external events (reset button, /squire reset) can
+    -- mutate stopRequested/aborted during mq.delay calls in the cleanup code below.
+    local wasStopped = stopRequested
+    local wasAborted = aborted
+
+    -- Safe cleanup (no item pickup): runs unless user explicitly stopped.
+    -- Item pickup (/itemnotify pack... leftmouseup) while casting can DC on EMU,
+    -- so on pause we only do /autoinventory or /destroy here and defer pickup ops.
+    if not wasStopped then
         if mq.TLO.Cursor.ID() then
             local cursorName = mq.TLO.Cursor.Name() or "unknown item"
             local cursorId = mq.TLO.Cursor.ID()
@@ -536,17 +570,22 @@ local function processQueue()
                 mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
             end
             if mq.TLO.Cursor.ID() then
-                utils.output("\arCursor still stuck after cleanup. Aborting.")
+                haltReason = string.format("'%s' stuck on cursor after cleanup", cursorName)
+                utils.output("\arHALTED: %s", haltReason)
                 aborted = true
+                wasAborted = true
             end
         end
+    end
 
+    -- Pickup / spell restore / nav: skip on pause (casting may be live).
+    if not wasStopped and not pauseReason then
         if not mq.TLO.Cursor.ID() then
             utils.restoreDisplacedItem()
         end
 
         if savedGems then
-            casting.restoreSpells(savedGems)
+            casting.restoreSpells(savedGems, function() return stopRequested end)
         end
 
         delivery.navToStart(settings.allowMovement)
@@ -557,17 +596,24 @@ local function processQueue()
     if settings.postQueueCommand ~= "" then
         mq.cmdf("%s", settings.postQueueCommand)
     end
-    if not aborted and not stopRequested then
-        utils.announce(settings.announceArming, "Finished arming.")
+    utils.announceQueueResult(settings.announceArming, wasStopped, wasAborted, pauseReason, true)
+
+    -- Preserve savedGems only on pure pause (not stopped, not aborted) for next-queue recovery.
+    if wasStopped or wasAborted or not pauseReason then
+        savedGems = nil
     end
-    savedGems = nil
     utils.clearLastSummonedItemId()
 
-    local wasStopped = stopRequested
     isArming = false
     stopRequested = false
-    if aborted then
-        statusText = wasStopped and "HALTED - user stopped" or "HALTED - inventory error"
+    if wasAborted then
+        if wasStopped then
+            statusText = "HALTED - user stopped"
+        else
+            statusText = string.format("HALTED - %s", haltReason or "unknown error")
+        end
+    elseif pauseReason then
+        statusText = string.format("HALTED - %s", pauseReason)
     else
         statusText = "Idle"
     end
@@ -687,8 +733,7 @@ commands = {
         handler = function(args)
             stopRequested = true
             aborted = true
-            queue = {}
-            queuedNames = Set.new({})
+            clearQueue()
             reactive.onStop()
             if not isArming then
                 statusText = "HALTED - user stopped"

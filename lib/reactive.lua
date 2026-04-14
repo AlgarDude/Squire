@@ -67,41 +67,9 @@ end
 
 -- Gating (Reactive Mode Only)
 
-local function hasXTargetHaters()
-    local xtCount = me.XTarget() or 0
-    for i = 1, xtCount do
-        local xt = me.XTarget(i)
-        if xt and (xt.ID() or 0) > 0 and not xt.Dead()
-            and (xt.Type() or "Corpse") ~= "Corpse"
-            and (xt.Aggressive() or (xt.TargetType() or ""):lower() == "auto hater") then
-            return true
-        end
-    end
-    return false
-end
-
--- Hard blocks: external interruptions that should abort mid-arm
--- (casting, cursor, moving, GiveWnd are all expected during arming)
-local function getHardBlockReason()
-    if me.CombatState() == "COMBAT" then return "in combat" end
-    if hasXTargetHaters() then return "xtarget haters" end
-    if me.Dead() then return "dead" end
-    if me.Feigning() then return "feigning" end
-    if mq.TLO.MacroQuest.GameState() ~= 'INGAME' then return "not in game" end
-    if mq.TLO.Window("TradeWnd").Open() then return "trade window open" end
-    if mq.TLO.Window("LootWnd").Open() then return "loot window open" end
-    if mq.TLO.Window("MerchantWnd").Open() then return "merchant open" end
-    if mq.TLO.Window("BigBankWnd").Open() then return "bank open" end
-    return nil
-end
-
-local function shouldAbortArming()
-    return getHardBlockReason() ~= nil
-end
-
 -- Soft blocks: temporary states that prevent starting a new pet but don't abort mid-arm
 local function getBlockReason()
-    return getHardBlockReason()
+    return utils.getHardBlockReason()
         or (me.Casting.ID() and "casting")
         or (me.Moving() and "moving")
         or (mq.TLO.Cursor.ID() and "item on cursor")
@@ -249,6 +217,7 @@ local function processReactiveQueue()
         savedGems = casting.saveCurrentGems()
     end
     local haltReason = nil
+    local pauseReason = nil
 
     local processed = 0
 
@@ -294,7 +263,7 @@ local function processReactiveQueue()
 
             local abortFired = false
             local abortCheck = function()
-                abortFired = abortFired or shouldAbortArming()
+                abortFired = abortFired or utils.shouldAbortArming()
                 return abortFired
             end
 
@@ -317,7 +286,9 @@ local function processReactiveQueue()
             elseif status == "pet_unavailable" or status == "aborted" or abortFired or deps.stopRequested() then
                 -- Mid-pet environmental abort, pet unavailable, or user stop
                 local reason = 'stopped'
-                if abortFired then reason = 'environment'
+                if abortFired then
+                    reason = 'environment'
+                    pauseReason = utils.getHardBlockReason() or "environmental block"
                 elseif status == "pet_unavailable" then reason = 'pet_unavailable'
                 end
                 broadcast({ command = 'release', playerName = entry.playerName, squireName = myName, })
@@ -396,7 +367,7 @@ local function processReactiveQueue()
         end
 
         if savedGems then
-            casting.restoreSpells(savedGems)
+            casting.restoreSpells(savedGems, function() return deps.stopRequested() end)
         end
 
         delivery.navToStart(deps.settings.allowMovement)
@@ -407,9 +378,7 @@ local function processReactiveQueue()
         if deps.settings.postQueueCommand ~= "" then
             mq.cmdf("%s", deps.settings.postQueueCommand)
         end
-        if isTerminal and not wasStopped and not wasAborted then
-            utils.announce(deps.settings.announceArming, "Finished arming.")
-        end
+        utils.announceQueueResult(deps.settings.announceArming, wasStopped, wasAborted, pauseReason, isTerminal)
         preFired = false
     end
 
@@ -429,6 +398,8 @@ local function processReactiveQueue()
         else
             deps.setStatusText(string.format("HALTED - %s", haltReason or "unknown error"))
         end
+    elseif pauseReason then
+        deps.setStatusText(string.format("HALTED - %s", pauseReason))
     else
         deps.setStatusText("Idle")
     end
