@@ -7,6 +7,8 @@ local mq = require('mq')
 
 local utils = {}
 
+local me = mq.TLO.Me
+
 local displacedItem = nil
 local lastSummonedItemId = nil
 
@@ -57,6 +59,19 @@ function utils.announce(channel, msg, ...)
         mq.cmdf("/rsay %s", text)
     elseif channel == "group" then
         mq.cmdf("/g %s", text)
+    end
+end
+
+-- isFinished gates only "Finished arming." so reactive can suppress it when the queue has remaining entries.
+function utils.announceQueueResult(channel, wasStopped, wasAborted, pauseReason, isFinished)
+    if wasStopped then
+        utils.announce(channel, "Arming stopped.")
+    elseif wasAborted then
+        utils.announce(channel, "Arming halted - attention needed.")
+    elseif pauseReason then
+        utils.announce(channel, "Arming paused - %s.", pauseReason)
+    elseif isFinished then
+        utils.announce(channel, "Finished arming.")
     end
 end
 
@@ -145,6 +160,38 @@ end
 
 function utils.isFamiliar(spawn)
     return (spawn.DisplayName() or ""):lower():find("familiar") ~= nil
+end
+
+-- Gating: hard blocks (external interruptions that should abort mid-arm)
+
+local function hasXTargetHaters()
+    local xtCount = me.XTarget() or 0
+    for i = 1, xtCount do
+        local xt = me.XTarget(i)
+        if xt and (xt.ID() or 0) > 0 and not xt.Dead()
+            and (xt.Type() or "Corpse") ~= "Corpse"
+            and (xt.Aggressive() or (xt.TargetType() or ""):lower() == "auto hater") then
+            return true
+        end
+    end
+    return false
+end
+
+function utils.getHardBlockReason()
+    if me.CombatState() == "COMBAT" then return "in combat" end
+    if hasXTargetHaters() then return "xtarget haters" end
+    if me.Dead() then return "dead" end
+    if me.Feigning() then return "feigning" end
+    if mq.TLO.MacroQuest.GameState() ~= 'INGAME' then return "not in game" end
+    if mq.TLO.Window("TradeWnd").Open() then return "trade window open" end
+    if mq.TLO.Window("LootWnd").Open() then return "loot window open" end
+    if mq.TLO.Window("MerchantWnd").Open() then return "merchant open" end
+    if mq.TLO.Window("BigBankWnd").Open() then return "bank open" end
+    return nil
+end
+
+function utils.shouldAbortArming()
+    return utils.getHardBlockReason() ~= nil
 end
 
 -- Cursor Helpers
