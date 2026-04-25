@@ -32,14 +32,18 @@ end
 
 -- Output
 
-utils.debugMode = false
+local config = nil
+
+function utils.bindConfig(s)
+    config = s
+end
 
 function utils.output(msg, ...)
     printf("\a-t[Squire]\aw " .. msg .. "\ax", ...)
 end
 
 function utils.debugOutput(msg, ...)
-    if utils.debugMode then
+    if config and config.debugMode then
         local t = mq.gettime()
         printf("\a-t[Squire] \a-y[DEBUG] \a-g[%.3f]\aw " .. msg .. "\ax", t / 1000, ...)
     end
@@ -113,6 +117,7 @@ local function defaultSettings()
         postQueueCommand = "/rgl unpause",
         announceArming = "disabled",
         reactiveMode = "page",
+        armInCombat = false,
         welcomeDone = false,
         sets = {},
     }
@@ -178,8 +183,10 @@ local function hasXTargetHaters()
 end
 
 function utils.getHardBlockReason()
-    if me.CombatState() == "COMBAT" then return "in combat" end
-    if hasXTargetHaters() then return "xtarget haters" end
+    if not (config and config.armInCombat) then
+        if me.CombatState() == "COMBAT" then return "in combat" end
+        if hasXTargetHaters() then return "xtarget haters" end
+    end
     if me.Dead() then return "dead" end
     if me.Feigning() then return "feigning" end
     if mq.TLO.MacroQuest.GameState() ~= 'INGAME' then return "not in game" end

@@ -115,7 +115,7 @@ local function handleMessage(message)
                 and (not currentlyArming or currentlyArming:lower() ~= lower) then
                 if cooldown then recentlyArmed[lower] = nil end
                 reactiveQueuedNames:add(lower)
-                table.insert(reactiveQueue, { playerName = content.playerName, })
+                table.insert(reactiveQueue, { playerName = content.playerName, petCombat = content.petCombat or false, })
                 utils.debugOutput("Reactive: queued %s for arming", content.playerName)
             end
         elseif cmd == "claim" and content.squireName ~= myName then
@@ -124,7 +124,7 @@ local function handleMessage(message)
             local lower = content.playerName and content.playerName:lower()
             if lower and not reactiveQueuedNames:contains(lower) then
                 reactiveQueuedNames:add(lower)
-                table.insert(reactiveQueue, { playerName = content.playerName, })
+                table.insert(reactiveQueue, { playerName = content.playerName, petCombat = content.petCombat or false, })
                 utils.debugOutput("Reactive: %s released %s, re-queued", content.squireName, content.playerName)
             end
         elseif cmd == "done" and content.squireName ~= myName then
@@ -161,7 +161,7 @@ local function pollPetId()
         if not utils.isFamiliar(me.Pet) then
             if not awaitingArm and ((me.Pet.Primary() or 0) == 0 or (me.Pet.Secondary() or 0) == 0 or deps.settings.alwaysRequestArming) then
                 utils.output("Pet summoned - requesting arming.")
-                broadcast({ command = 'arm', playerName = myName, petId = currentPetId, })
+                broadcast({ command = 'arm', playerName = myName, petId = currentPetId, petCombat = me.Pet.Combat() or false, })
                 awaitingArm = true
                 awaitingArmTime = mq.gettime()
             end
@@ -187,7 +187,7 @@ local function pollPetWeapons()
         end
     end
     if (me.Pet.Primary() or 0) == 0 or (me.Pet.Secondary() or 0) == 0 then
-        broadcast({ command = 'arm', playerName = myName, petId = me.Pet.ID(), })
+        broadcast({ command = 'arm', playerName = myName, petId = me.Pet.ID(), petCombat = me.Pet.Combat() or false, })
         awaitingArm = true
         awaitingArmTime = now
     end
@@ -198,7 +198,7 @@ local function checkReBroadcastTimer()
     if mq.gettime() >= reBroadcastTimer then
         reBroadcastTimer = nil
         if (me.Pet.ID() or 0) > 0 then
-            broadcast({ command = 'arm', playerName = myName, petId = me.Pet.ID(), })
+            broadcast({ command = 'arm', playerName = myName, petId = me.Pet.ID(), petCombat = me.Pet.Combat() or false, })
             awaitingArm = true
             awaitingArmTime = mq.gettime()
         end
@@ -245,7 +245,7 @@ local function processReactiveQueue()
             entry.playerName, processed, processed + #reactiveQueue))
 
         -- Pre-check: skip if pet missing/unreachable before firing pre-command
-        local petSpawn = mq.TLO.Spawn("pc " .. entry.playerName).Pet
+        local petSpawn = mq.TLO.Spawn("pc =" .. entry.playerName).Pet
         if (petSpawn.ID() or 0) == 0
             or utils.isFamiliar(petSpawn)
             or (petSpawn.Distance3D() or 999) > 100 then
@@ -267,7 +267,7 @@ local function processReactiveQueue()
                 return abortFired
             end
 
-            local result, status = deps.armPet(entry.playerName, nil, false, abortCheck)
+            local result, status = deps.armPet(entry.playerName, nil, false, abortCheck, entry.petCombat)
 
             if status == "skipped" and not abortFired then
                 currentlyArming = nil
@@ -279,7 +279,7 @@ local function processReactiveQueue()
                 deps.setAborted(true)
                 utils.output("\arHALTED while arming %s's pet: %s", entry.playerName, haltReason)
                 mq.cmdf("/dgt [Squire] %s HALTED arming %s's pet: %s - /squire reset to resume", myName, entry.playerName, haltReason)
-                broadcast({ command = 'release', playerName = entry.playerName, squireName = myName, })
+                broadcast({ command = 'release', playerName = entry.playerName, squireName = myName, petCombat = entry.petCombat, })
                 broadcast({ command = 'aborted', playerName = entry.playerName, squireName = myName, reason = 'inventory', })
                 currentlyArming = nil
                 break
@@ -289,9 +289,10 @@ local function processReactiveQueue()
                 if abortFired then
                     reason = 'environment'
                     pauseReason = utils.getHardBlockReason() or "environmental block"
-                elseif status == "pet_unavailable" then reason = 'pet_unavailable'
+                elseif status == "pet_unavailable" then
+                    reason = 'pet_unavailable'
                 end
-                broadcast({ command = 'release', playerName = entry.playerName, squireName = myName, })
+                broadcast({ command = 'release', playerName = entry.playerName, squireName = myName, petCombat = entry.petCombat, })
                 broadcast({
                     command = 'aborted',
                     playerName = entry.playerName,
@@ -309,7 +310,7 @@ local function processReactiveQueue()
                 end
                 broadcast(doneMsg)
                 recentlyArmed[entry.playerName:lower()] = mq.gettime() + 5000
-                local armedPet = mq.TLO.Spawn("pc " .. entry.playerName).Pet
+                local armedPet = mq.TLO.Spawn("pc =" .. entry.playerName).Pet
                 if armedPet() then
                     lastArmedPetId[entry.playerName:lower()] = armedPet.ID()
                 end
@@ -423,7 +424,7 @@ function reactive.tick()
         if #reactiveQueue > 0 then
             utils.debugOutput("Reactive: zone changed, flushing %d queued requests", #reactiveQueue)
             for _, entry in ipairs(reactiveQueue) do
-                broadcast({ command = 'release', playerName = entry.playerName, squireName = myName, })
+                broadcast({ command = 'release', playerName = entry.playerName, squireName = myName, petCombat = entry.petCombat, })
                 broadcast({ command = 'aborted', playerName = entry.playerName, squireName = myName, reason = 'zoned', })
             end
             reactiveQueue = {}

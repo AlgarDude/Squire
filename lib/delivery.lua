@@ -178,7 +178,6 @@ local function batchGive(petSpawn, itemFuncs, abortFunc, navParams)
         local batchCount = 0
 
         for i = batchStart, batchEnd do
-
             local itemFunc = itemFuncs[i]
             utils.debugOutput(" Item %d/%d: getting %s (ID: %d)", i, #itemFuncs, itemFunc.name or "?", itemFunc.id)
             local ok = itemFunc.getItem()

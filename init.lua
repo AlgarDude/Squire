@@ -13,7 +13,7 @@ local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 local reactive = require('squire.lib.reactive')
 
-local version = "1.0.2"
+local version = "1.0.3"
 
 -- Module-Level State
 
@@ -253,7 +253,7 @@ end
 
 -- Core Arm Logic
 
-local function armPet(playerName, setName, fromTell, abortCheck)
+local function armPet(playerName, setName, fromTell, abortCheck, petCombat)
     if aborted then
         utils.output("\arArming halted. Use /squire reset to resume.")
         return false
@@ -269,7 +269,7 @@ local function armPet(playerName, setName, fromTell, abortCheck)
     end
 
     -- Find pet
-    local petSpawn = mq.TLO.Spawn("pc " .. playerName).Pet
+    local petSpawn = mq.TLO.Spawn("pc =" .. playerName).Pet
 
     if (petSpawn.ID() or 0) == 0 then
         utils.output("\ay%s does not have a pet.", playerName)
@@ -347,8 +347,12 @@ local function armPet(playerName, setName, fromTell, abortCheck)
                 break
             end
 
-            -- Verify freeSlot if bag method
-            if entry.method == "bag" and freeSlot and mq.TLO.InvSlot("pack" .. freeSlot).Item.ID() then
+            -- Pet-in-combat: trade-based sources will fail on attacking pets, skip them
+            if petCombat and entry.method ~= "direct" then
+                utils.debugOutput("Skipping %s source '%s' (pet in combat)", entry.method, entry.name)
+                results[i] = false
+                -- Verify freeSlot if bag method
+            elseif entry.method == "bag" and freeSlot and mq.TLO.InvSlot("pack" .. freeSlot).Item.ID() then
                 utils.output("\arFree slot pack%d still occupied. Skipping %s.", freeSlot, entry.name)
                 results[i] = false
             else
@@ -440,7 +444,7 @@ local function addToQueue(playerName, setName, fromTell)
         return
     end
 
-    local petSpawn = mq.TLO.Spawn("pc " .. playerName).Pet
+    local petSpawn = mq.TLO.Spawn("pc =" .. playerName).Pet
     if (petSpawn.ID() or 0) == 0 then
         utils.output("\ay%s does not have a pet.", playerName)
         if fromTell and settings.tellReplies then
@@ -536,7 +540,8 @@ local function processQueue()
         processed = processed + 1
         statusText = string.format("Arming pet %d/%d: %s pet...", processed, processed + #queue, petDisplayName(request.playerName))
 
-        local result, status = armPet(request.playerName, request.setName, request.fromTell, abortCheck)
+        local petCombat = request.playerName == me.DisplayName() and (me.Pet.Combat() or false) or false
+        local result, status = armPet(request.playerName, request.setName, request.fromTell, abortCheck, petCombat)
 
         if abortFired then
             clearQueue()
@@ -694,7 +699,7 @@ local function queuePetOwners(getMember, startIndex, count, setName)
 end
 
 local commandOrder = { "help", "stop", "reset", "show", "hide", "debug", "arm", "mode", "tellaccess", }
-local commandsExpanded = false
+local commandsExpanded = nil
 
 local commands
 commands = {
@@ -790,18 +795,17 @@ commands = {
         about = "Toggle debug logging",
         handler = function(args)
             local arg = args[2] and args[2]:lower() or ""
-            local prev = utils.debugMode
+            local prev = settings.debugMode
             if arg == "on" then
-                utils.debugMode = true
+                settings.debugMode = true
             elseif arg == "off" then
-                utils.debugMode = false
+                settings.debugMode = false
             else
-                utils.debugMode = not utils.debugMode
+                settings.debugMode = not settings.debugMode
             end
-            if utils.debugMode ~= prev then
-                settings.debugMode = utils.debugMode
+            if settings.debugMode ~= prev then
                 settingsDirty = true
-                utils.output("Debug mode: %s", utils.debugMode and "ON" or "OFF")
+                utils.output("Debug mode: %s", settings.debugMode and "ON" or "OFF")
             end
         end,
     },
@@ -1516,11 +1520,48 @@ local function renderSettingsWindow()
         if changed then settingsDirty = true end
         if not pageActive then imgui.EndDisabled() end
 
-        settings.debugMode, changed = imgui.Checkbox("Debug Logging", settings.debugMode)
-        if changed then
-            utils.debugMode = settings.debugMode
-            settingsDirty = true
+        local prevArmInCombat = settings.armInCombat
+        settings.armInCombat, changed = imgui.Checkbox("Limited Combat Arming", settings.armInCombat)
+        if imgui.IsItemHovered() then
+            imgui.SetTooltip("Allows limited arming under combat conditions. Can cause undesirable behavior.")
         end
+        if changed then
+            if settings.armInCombat and not prevArmInCombat then
+                settings.armInCombat = false
+                imgui.OpenPopup("ArmInCombatConfirm##Settings")
+            else
+                settingsDirty = true
+            end
+        end
+
+        imgui.SetNextWindowSize(ImVec2(440, 0), ImGuiCond.Appearing)
+        if imgui.BeginPopup("ArmInCombatConfirm##Settings") then
+            imgui.PushTextWrapPos(420)
+            imgui.TextWrapped("Allows limited arming under combat conditions.")
+            imgui.Spacing()
+            imgui.TextWrapped(
+                "Squire is unable to trade with attacking pets. Trade-based sources (cursor, bag, trade) are skipped if the pet is attacking - only direct-to-pet sources (spells, AAs, clickies targeting the pet) will run.")
+            imgui.Spacing()
+            imgui.TextWrapped(
+                "Mixed-source sets may result in repeated arming, a pet not receiving all items, or other undesirable behavior. This option is largely aimed at servers where all sources are direct-to-pet types, or automation where pets aren't sent in to attack automatically.")
+            imgui.Spacing()
+            imgui.TextWrapped("Are you sure you wish to use this feature?")
+            imgui.PopTextWrapPos()
+            imgui.Spacing()
+            if imgui.Button("Enable") then
+                settings.armInCombat = true
+                settingsDirty = true
+                imgui.CloseCurrentPopup()
+            end
+            imgui.SameLine()
+            if imgui.Button("Close##ArmInCombat") then
+                imgui.CloseCurrentPopup()
+            end
+            imgui.EndPopup()
+        end
+
+        settings.debugMode, changed = imgui.Checkbox("Debug Logging", settings.debugMode)
+        if changed then settingsDirty = true end
 
         imgui.NewLine()
         imgui.PushStyleColor(ImGuiCol.Text, headColor)
@@ -2266,7 +2307,7 @@ end
 
 local function startup()
     settings = utils.loadSettings()
-    utils.debugMode = settings.debugMode
+    utils.bindConfig(settings)
     resolvePresets()
 
     if not getSet(settings.selectedSet) then
