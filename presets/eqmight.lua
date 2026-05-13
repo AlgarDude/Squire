@@ -11,6 +11,7 @@ local phantomSatchel = { id = 17310, name = "Phantom Satchel", icon = 691, }
 local marduMask = { id = 1348, name = "Summoned: Muzzle of Mardu", icon = 770, }
 local mowchaMask = { id = 46987, name = "Summoned: Muzzle of Mowcha", icon = 770, }
 local walnanBlade = { id = 28595, name = "Summoned: Blade of Walnan", icon = 1342, }
+local fieryEdge = { id = 153515, name = "Fiery Edge", icon = 1726, }
 
 return {
   {
@@ -331,6 +332,12 @@ return {
           type = "spell",
           method = "cursor",
           items = { walnanBlade, walnanBlade, },
+        },
+        {
+          name = "Fiery Edge",
+          type = "spell",
+          method = "cursor",
+          items = { fieryEdge, fieryEdge, },
         },
         {
           name = "Summon Fang",
