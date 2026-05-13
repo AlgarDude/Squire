@@ -85,6 +85,12 @@ return {
           method = "cursor",
           items = { ixiblat, ixiblat, },
         },
+        {
+          name = "Artifact of Fiery Edge",
+          type = "item",
+          method = "cursor",
+          items = { fieryEdge, fieryEdge, },
+        },
       },
     },
   },
@@ -133,6 +139,12 @@ return {
           type = "item",
           method = "cursor",
           items = { ixiblat, ixiblat, },
+        },
+        {
+          name = "Artifact of Fiery Edge",
+          type = "item",
+          method = "cursor",
+          items = { fieryEdge, fieryEdge, },
         },
       },
     },
@@ -333,6 +345,12 @@ return {
           type = "spell",
           method = "cursor",
           items = { walnanBlade, walnanBlade, },
+        },
+        {
+          name = "Artifact of Fiery Edge",
+          type = "item",
+          method = "cursor",
+          items = { fieryEdge, fieryEdge, },
         },
         {
           name = "Fiery Edge",
