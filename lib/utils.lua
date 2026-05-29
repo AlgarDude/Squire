@@ -164,7 +164,9 @@ end
 -- Spawn Helpers
 
 function utils.isFamiliar(spawn)
-    return (spawn.DisplayName() or ""):lower():find("familiar") ~= nil
+    local owner = (spawn.Master.CleanName() or ""):lower()
+    if owner == "" then return false end
+    return (spawn.DisplayName() or ""):lower():find(owner .. "`s familiar", 1, true) ~= nil
 end
 
 -- Gating: hard blocks (external interruptions that should abort mid-arm)
