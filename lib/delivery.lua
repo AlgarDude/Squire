@@ -185,7 +185,7 @@ local function batchGive(petSpawn, itemFuncs, abortFunc, navParams)
                 utils.debugOutput(" Item %d/%d: getItem failed", i, #itemFuncs)
             end
             if ok and abortFunc and abortFunc() then
-                utils.autoinventory()
+                utils.disposeCursorItem()
                 allSuccess = false
                 break
             end
@@ -195,8 +195,8 @@ local function batchGive(petSpawn, itemFuncs, abortFunc, navParams)
                 ok = false
             end
             if ok and not placeCursorItemInGiveWindow(petSpawn, navParams) then
-                utils.output("\arFailed to open GiveWnd. Autoinventorying cursor item.")
-                utils.autoinventory()
+                utils.output("\arFailed to open GiveWnd. Disposing of cursor item.")
+                utils.disposeCursorItem()
                 -- Pet is unavailable (combat, untargetable, out of range)
                 petUnavailable = true
                 allSuccess = false

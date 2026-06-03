@@ -58,7 +58,8 @@ local function removeFromReactiveQueue(playerName)
     if not playerName then return end
     local lower = playerName:lower()
     for i = #reactiveQueue, 1, -1 do
-        if reactiveQueue[i].playerName:lower() == lower then
+        local entry = reactiveQueue[i]
+        if entry and entry.playerName and entry.playerName:lower() == lower then
             table.remove(reactiveQueue, i)
         end
     end

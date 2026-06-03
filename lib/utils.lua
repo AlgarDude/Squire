@@ -215,6 +215,17 @@ function utils.destroyCursor()
     mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
 end
 
+-- Destroy a freshly summoned disposable item on the cursor (bank anything else) so failed deliveries don't hoard re-summoned pet items.
+function utils.disposeCursorItem()
+    if not mq.TLO.Cursor.ID() then return end
+    if mq.TLO.Cursor.NoRent() and mq.TLO.Cursor.ID() == lastSummonedItemId then
+        utils.debugOutput("Destroying summoned item: %s (ID: %d)", mq.TLO.Cursor.Name() or "?", mq.TLO.Cursor.ID())
+        utils.destroyCursor()
+    else
+        utils.autoinventory()
+    end
+end
+
 -- Inventory
 
 function utils.findFreeTopSlot()
