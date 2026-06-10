@@ -190,8 +190,8 @@ local function batchGive(petSpawn, itemFuncs, abortFunc, navParams)
                 break
             end
             if ok and mq.TLO.Cursor.ID() ~= itemFunc.id then
-                utils.output("\arWrong item on cursor (expected %d, got %d). Autoinventorying.", itemFunc.id, mq.TLO.Cursor.ID() or 0)
-                utils.autoinventory()
+                utils.output("\arWrong item on cursor (expected %d, got %d). Disposing.", itemFunc.id, mq.TLO.Cursor.ID() or 0)
+                utils.disposeCursorItem()
                 ok = false
             end
             if ok and not placeCursorItemInGiveWindow(petSpawn, navParams) then
@@ -317,9 +317,9 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc, navParams)
         -- Verify the cursor item matches the expected clicky
         local clicky = entry.clickyItem
         if clicky and clicky.id and mq.TLO.Cursor.ID() ~= clicky.id then
-            utils.output("\arExpected '%s' (ID: %d) on cursor but got '%s' (ID: %d). Autoinventorying.",
+            utils.output("\arExpected '%s' (ID: %d) on cursor but got '%s' (ID: %d). Disposing.",
                 clicky.name, clicky.id, mq.TLO.Cursor.Name() or "?", mq.TLO.Cursor.ID() or 0)
-            utils.autoinventory()
+            utils.disposeCursorItem()
             return false
         end
 
@@ -330,6 +330,7 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc, navParams)
         mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
         if mq.TLO.Cursor.ID() then
             utils.output("\arFailed to place clicky in pack%d: %s", freeSlot, clickyName)
+            utils.disposeCursorItem()
             return false
         end
 
@@ -352,11 +353,20 @@ function delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc, navParams)
         return false
     end
 
+    -- Clicky unfold consumes the parked clicky from freeSlot; wait for the slot to clear before placing the bag
+    mq.delay(1000, function() return not mq.TLO.InvSlot("pack" .. freeSlot).Item.ID() end)
+    if mq.TLO.InvSlot("pack" .. freeSlot).Item.ID() then
+        utils.output("\arpack%d did not clear after %s. Disposing cursor item.", freeSlot, entry.name)
+        utils.disposeCursorItem()
+        return false
+    end
+
     -- Place bag into free top slot
     mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", freeSlot)
     mq.delay(1500, function() return not mq.TLO.Cursor.ID() end)
     if mq.TLO.Cursor.ID() then
         utils.output("\arFailed to place bag into pack%d.", freeSlot)
+        utils.disposeCursorItem()
         return false
     end
 

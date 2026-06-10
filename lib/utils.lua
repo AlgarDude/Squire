@@ -9,7 +9,7 @@ local utils = {}
 
 local me = mq.TLO.Me
 
-local displacedItem = nil
+local displacedItems = {}
 local lastSummonedItemId = nil
 
 -- Polling
@@ -253,6 +253,12 @@ function utils.findBagWithSpace()
 end
 
 function utils.freeTopSlot()
+    -- Pickup below misplaces a held item if the cursor isn't empty; bail rather than corrupt
+    if mq.TLO.Cursor.ID() then
+        utils.debugOutput("freeTopSlot: cursor occupied, cannot free a slot")
+        return "abort"
+    end
+
     -- First try: find a non-container top-level item to move into a bag
     local sourceSlot
     for i = 1, mq.TLO.Me.NumBagSlots() do
@@ -332,42 +338,33 @@ function utils.freeTopSlot()
         return "abort"
     end
 
-    displacedItem = { sourceSlot = sourceSlot, destPack = destPack, destSubSlot = destSubSlot, }
+    table.insert(displacedItems, { sourceSlot = sourceSlot, destPack = destPack, destSubSlot = destSubSlot, })
     utils.debugOutput("freeTopSlot: freed pack%d", sourceSlot)
     return sourceSlot
 end
 
-function utils.restoreDisplacedItem()
-    if not displacedItem then return end
-    if mq.TLO.Cursor.ID() then
-        utils.debugOutput("restoreDisplacedItem: cursor occupied, skipping")
-        return
-    end
-
-    local info = displacedItem
-    displacedItem = nil
-
+local function restoreOne(info)
     -- Verify the item is still where we put it
     local destSlot = mq.TLO.InvSlot("pack" .. info.destPack)
     if not destSlot.Item.Item(info.destSubSlot).ID() then
-        utils.debugOutput("restoreDisplacedItem: nothing in pack%d slot %d, skipping", info.destPack, info.destSubSlot)
+        utils.debugOutput("restoreDisplaced: nothing in pack%d slot %d, skipping", info.destPack, info.destSubSlot)
         return
     end
 
     -- Verify the original slot is free
     if mq.TLO.InvSlot("pack" .. info.sourceSlot).Item.ID() then
-        utils.debugOutput("restoreDisplacedItem: pack%d is occupied, skipping", info.sourceSlot)
+        utils.debugOutput("restoreDisplaced: pack%d is occupied, skipping", info.sourceSlot)
         return
     end
 
-    utils.debugOutput("restoreDisplacedItem: moving pack%d slot %d -> pack%d",
+    utils.debugOutput("restoreDisplaced: moving pack%d slot %d -> pack%d",
         info.destPack, info.destSubSlot, info.sourceSlot)
 
     -- Pick up from destination sub-slot
     mq.cmdf("/nomodkey /shiftkey /itemnotify in pack%d %d leftmouseup", info.destPack, info.destSubSlot)
     mq.delay(3000, function() return (mq.TLO.Cursor.ID() or 0) > 0 end)
     if not mq.TLO.Cursor.ID() then
-        utils.debugOutput("restoreDisplacedItem: failed to pick up item, aborting restore")
+        utils.debugOutput("restoreDisplaced: failed to pick up item, aborting restore")
         return
     end
 
@@ -375,13 +372,24 @@ function utils.restoreDisplacedItem()
     mq.cmdf("/nomodkey /itemnotify pack%d leftmouseup", info.sourceSlot)
     mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
     if mq.TLO.Cursor.ID() then
-        utils.debugOutput("restoreDisplacedItem: failed to place item, autoinventorying")
+        utils.debugOutput("restoreDisplaced: failed to place item, autoinventorying")
         mq.cmd("/autoinventory")
         mq.delay(3000, function() return not mq.TLO.Cursor.ID() end)
         return
     end
 
-    utils.debugOutput("restoreDisplacedItem: restored item to pack%d", info.sourceSlot)
+    utils.debugOutput("restoreDisplaced: restored item to pack%d", info.sourceSlot)
+end
+
+-- Restore all displaced items, most-recent first; defers the rest if the cursor is occupied
+function utils.restoreDisplacedItems()
+    while #displacedItems > 0 do
+        if mq.TLO.Cursor.ID() then
+            utils.debugOutput("restoreDisplacedItems: cursor occupied, deferring %d item(s)", #displacedItems)
+            return
+        end
+        restoreOne(table.remove(displacedItems))
+    end
 end
 
 function utils.setLastSummonedItemId(id)

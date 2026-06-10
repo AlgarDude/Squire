@@ -13,7 +13,7 @@ local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 local reactive = require('squire.lib.reactive')
 
-local version = "1.1.4"
+local version = "1.1.5"
 
 -- Module-Level State
 
@@ -351,30 +351,36 @@ local function armPet(playerName, setName, fromTell, abortCheck, petCombat)
             if petCombat and entry.method ~= "direct" then
                 utils.debugOutput("Skipping %s source '%s' (pet in combat)", entry.method, entry.name)
                 results[i] = false
-                -- Verify freeSlot if bag method
-            elseif entry.method == "bag" and freeSlot and mq.TLO.InvSlot("pack" .. freeSlot).Item.ID() then
-                utils.output("\arFree slot pack%d still occupied. Skipping %s.", freeSlot, entry.name)
-                results[i] = false
             else
-                local success = false
-                local sourceUnavailable = false
-                if entry.method == "direct" then
-                    success = delivery.deliverDirect(entry, petSpawn, abortFunc, navParams)
-                elseif entry.method == "cursor" then
-                    success, sourceUnavailable = delivery.deliverCursor(entry, petSpawn, abortFunc, navParams)
-                elseif entry.method == "bag" then
-                    success, sourceUnavailable = delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc, navParams)
-                elseif entry.method == "trade" then
-                    success, sourceUnavailable = delivery.deliverTrade(entry, petSpawn, navParams)
+                -- Bag sources need a clear reserved top slot; re-acquire if a prior source clobbered it
+                if entry.method == "bag" and (not freeSlot or freeSlot == "abort" or mq.TLO.InvSlot("pack" .. freeSlot).Item.ID()) then
+                    freeSlot = utils.ensureFreeTopSlot()
                 end
-                results[i] = success
-                if sourceUnavailable then
-                    petUnavailable = true
-                    utils.output("\ayPet unavailable for giving. Skipping remaining sources.")
-                    break
+
+                if entry.method == "bag" and freeSlot == "abort" then
+                    utils.output("\arCould not free a top-level slot for %s. Skipping.", entry.name)
+                    results[i] = false
+                else
+                    local success = false
+                    local sourceUnavailable = false
+                    if entry.method == "direct" then
+                        success = delivery.deliverDirect(entry, petSpawn, abortFunc, navParams)
+                    elseif entry.method == "cursor" then
+                        success, sourceUnavailable = delivery.deliverCursor(entry, petSpawn, abortFunc, navParams)
+                    elseif entry.method == "bag" then
+                        success, sourceUnavailable = delivery.deliverBag(entry, petSpawn, freeSlot, abortFunc, navParams)
+                    elseif entry.method == "trade" then
+                        success, sourceUnavailable = delivery.deliverTrade(entry, petSpawn, navParams)
+                    end
+                    results[i] = success
+                    if sourceUnavailable then
+                        petUnavailable = true
+                        utils.output("\ayPet unavailable for giving. Skipping remaining sources.")
+                        break
+                    end
+                    -- After a failed source, check abort before trying next source
+                    if not success and abortFunc() then break end
                 end
-                -- After a failed source, check abort before trying next source
-                if not success and abortFunc() then break end
             end
         end
     end
@@ -508,7 +514,7 @@ local function processQueue()
 
     -- Deferred from a prior paused queue: restore anything left in a temp slot
     -- before the new queue potentially displaces something else.
-    utils.restoreDisplacedItem()
+    utils.restoreDisplacedItems()
 
     utils.announce(settings.announceArming, "Arming pets - please hold.")
 
@@ -586,7 +592,7 @@ local function processQueue()
     -- Pickup / spell restore / nav: skip on pause (casting may be live).
     if not wasStopped and not pauseReason then
         if not mq.TLO.Cursor.ID() then
-            utils.restoreDisplacedItem()
+            utils.restoreDisplacedItems()
         end
 
         if savedGems then

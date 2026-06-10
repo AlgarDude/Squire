@@ -365,7 +365,7 @@ local function processReactiveQueue()
     -- Restore/nav only on terminal exits to avoid churn on temporary blocks
     if canCleanup and isTerminal then
         if not mq.TLO.Cursor.ID() then
-            utils.restoreDisplacedItem()
+            utils.restoreDisplacedItems()
         end
 
         if savedGems then
