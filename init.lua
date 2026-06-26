@@ -13,7 +13,7 @@ local casting = require('squire.lib.casting')
 local delivery = require('squire.lib.delivery')
 local reactive = require('squire.lib.reactive')
 
-local version = "1.1.5"
+local version = "1.1.6"
 
 -- Module-Level State
 
@@ -122,7 +122,8 @@ local function resolvePresets()
     presetAliasOf = {}
 
     local presetFile
-    if mq.TLO.MacroQuest.BuildName():lower() == "emu" then
+    local isEmu = mq.TLO.MacroQuest.BuildName():lower() == "emu"
+    if isEmu then
         local serverName = mq.TLO.EverQuest.Server()
         -- if we wish to deviate from this scheme later we can use a lookup table
         local fileSuffix = serverName:lower():gsub(" ", "")
@@ -134,6 +135,12 @@ local function resolvePresets()
     -- Clear cached module so re-resolve picks up changes
     package.loaded[presetFile] = nil
     local ok, rawPresets = pcall(require, presetFile)
+    if (not ok or not rawPresets) and isEmu then
+        utils.output("\ayNo preset file for this server (%s). Falling back to Live presets.", presetFile)
+        presetFile = "squire.presets.live"
+        package.loaded[presetFile] = nil
+        ok, rawPresets = pcall(require, presetFile)
+    end
     if not ok or not rawPresets then
         utils.output("No preset file found (%s). Continuing without presets.", presetFile)
         return
